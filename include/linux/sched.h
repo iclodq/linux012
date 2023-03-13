@@ -102,45 +102,65 @@ struct tss_struct {
 	struct i387_struct i387;
 };
 
+// 进程的数据结构
 struct task_struct {
 /* these are hardcoded - don't touch */
-	long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
-	long counter;
-	long priority;
-	long signal;
-	struct sigaction sigaction[32];
-	long blocked;	/* bitmap of masked signals */
+	long state;								// 进程的运行状态 =-1#unrunnable 不可运行 | 0#runnable，就绪，可运行  | >0# 以停止 
+	long counter;							// 任务运行时间计数  运行时间片 保存着进程在被暂停运行之前还能执行的时间滴答数  初次被创建时，count=priority
+	long priority;							// 给count赋初值
+	long signal;							// 信号   格式：位图,每个比特位表示一个信号，信号值=位偏移值+1
+	struct sigaction sigaction[32];			// 信号将要执行的操作和标志信息
+	long blocked;							// 进程信号屏蔽码	和 signal对应
 /* various fields */
-	int exit_code;
-	unsigned long start_code,end_code,end_data,brk,start_stack;
-	long pid,pgrp,session,leader;
-	int	groups[NGROUPS];
+	int exit_code;							// 任务停止执行后的退出码，  父进程会来获取
+	unsigned long start_code;				// 代码段地址
+	unsigned long end_code;					// 代码段长度？ (字节数)
+	unsigned long end_data;					// 代码段长度+数据长度（字节数）
+	unsigned long brk;						// 总长度（字节数）
+	unsigned long start_stack;				// 堆栈段地址
+	long pid;								// 进程标志号（进程号）
+	long pgrp;								// 进程组号
+	long session;							// 会话号
+	long leader;							// 会话首领
+	int	groups[NGROUPS];					// 进程所属组号，一个进程可属于多个组
 	/* 
 	 * pointers to parent process, youngest child, younger sibling,
 	 * older sibling, respectively.  (p->father can be replaced with 
 	 * p->p_pptr->pid)
 	 */
-	struct task_struct	*p_pptr, *p_cptr, *p_ysptr, *p_osptr;
-	unsigned short uid,euid,suid;
-	unsigned short gid,egid,sgid;
-	unsigned long timeout,alarm;
-	long utime,stime,cutime,cstime,start_time;
-	struct rlimit rlim[RLIM_NLIMITS]; 
-	unsigned int flags;	/* per process flags, defined below */
-	unsigned short used_math;
+	struct task_struct	*p_pptr;			// 指向父进程的指针
+	struct taskt_struct *p_cptr; 			// 指向最新的一个此进程的指针
+	struct taskt_struct *p_ysptr;			// 指向比自己后创建的相邻进程的指针
+	struct taskt_struct *p_osptr;			// 指向比自己早创建的相邻进程的指针
+	unsigned short uid;						// 用户id
+	unsigned short euid;					// 有效用户id
+	unsigned short suid;					// 保存的用户id
+	unsigned short gid;						// 组id
+	unsigned short egid;					// 有效的组id
+	unsigned short sgid;					// 保存的组id
+	unsigned long timeout;					// 内核定时器超时值
+	unsigned long alarm;					// 报警定时值（滴答数）
+	long utime;								// 用户态运行时间（滴答数）
+	long stime;								// 系统态运行时间（滴答数）
+	long cutime;							// 子进程用户态运行时间（滴答数）
+	long cstime;							// 子进程系统态运行时间（滴答数）
+	long start_time;						// 进程开始运行的时间
+	struct rlimit rlim[RLIM_NLIMITS]; 		// 进程资源使用统计数组
+	unsigned int flags;						// 进程的标志，还未使用？ 
+	unsigned short used_math;				// 标记是否使用了协处理器
 /* file system info */
-	int tty;		/* -1 if no tty, so it must be signed */
-	unsigned short umask;
-	struct m_inode * pwd;
-	struct m_inode * root;
-	struct m_inode * executable;
-	struct m_inode * library;
-	unsigned long close_on_exec;
-	struct file * filp[NR_OPEN];
+	int tty;								// 进程使用的tty终端的子设备号 -1 表示没有使用 
+	unsigned short umask;					// 文件创建属性屏蔽位
+	struct m_inode * pwd;					// 当前工作目录inode节点的指针
+	struct m_inode * root;					// 根目录inode节点指针
+	struct m_inode * executable;			// 执行文件inode节点指针
+	struct m_inode * library;				// 被加载库文件inode节点指针
+	unsigned long close_on_exec;			// 执行时关闭文件句柄位图标记 （fcntl.h)
+	struct file * filp[NR_OPEN];			// 文件结构指针表，最多32， 数组索引号就是文件描述符的值
 /* ldt for this task 0 - zero 1 - cs 2 - ds&ss */
-	struct desc_struct ldt[3];
+	struct desc_struct ldt[3];				// 局部描述符表 =0#空|1#代码段|2#数据和堆栈段 ds&ss
 /* tss for this task */
-	struct tss_struct tss;
+	struct tss_struct tss;					// 进程的任务状态段信息结构
 };
 
 /*
