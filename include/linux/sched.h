@@ -102,6 +102,14 @@ struct tss_struct {
 	struct i387_struct i387;
 };
 
+/*
+TASK_RUNNING			0	运行（内核态和用户态)
+TASK_INTERRUPTIBLE		1	 可中断的睡眠
+TASK_UNINTERRUPTIBLE	2	不可中断的睡眠
+TASK_ZOMBIE				3	僵死
+TASK_STOPPED			4	暂停
+*/
+
 // 进程的数据结构
 struct task_struct {
 /* these are hardcoded - don't touch */
@@ -160,7 +168,7 @@ struct task_struct {
 /* ldt for this task 0 - zero 1 - cs 2 - ds&ss */
 	struct desc_struct ldt[3];				// 局部描述符表 =0#空|1#代码段|2#数据和堆栈段 ds&ss
 /* tss for this task */
-	struct tss_struct tss;					// 进程的任务状态段信息结构
+	struct tss_struct tss;					// 进程的任务状态段信息结构(Task state Segment) 保存当前进程所有寄存器值
 };
 
 /*
