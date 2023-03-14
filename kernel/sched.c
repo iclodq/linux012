@@ -139,17 +139,23 @@ void schedule(void)
 
 /* check alarm, wake up any interruptible tasks that have got a signal */
 
+	// 唤醒 触发超时或触发警告的 处于可中断睡眠状态的进程
 	for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 		if (*p) {
+			// @doubt jiffies是啥意思,系统开机开始算起的嘀嗒数 (10ms 一嘀嗒)
+			// 超时计时没有超过jiffies，则重置，如果处于睡眠可中断状态，则修改为就绪状态
 			if ((*p)->timeout && (*p)->timeout < jiffies) {
 				(*p)->timeout = 0;
 				if ((*p)->state == TASK_INTERRUPTIBLE)
 					(*p)->state = TASK_RUNNING;
 			}
+			// 如果任务设置了警告，且警告小于jiffies，则设置警报信号，并清空警告值
 			if ((*p)->alarm && (*p)->alarm < jiffies) {
 				(*p)->signal |= (1<<(SIGALRM-1));
 				(*p)->alarm = 0;
 			}
+			// 可阻塞信号& 设置的要阻塞的信号 = 实际需要阻塞的信号
+			// 在排除了需要阻塞的信号后还有信号，如果处于可中断的睡眠状态，则修改为就绪状态
 			if (((*p)->signal & ~(_BLOCKABLE & (*p)->blocked)) &&
 			(*p)->state==TASK_INTERRUPTIBLE)
 				(*p)->state=TASK_RUNNING;

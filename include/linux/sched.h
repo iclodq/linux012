@@ -43,11 +43,11 @@
 #error "Currently the close-on-exec-flags and select masks are in one long, max 32 files/proc"
 #endif
 
-#define TASK_RUNNING		0
-#define TASK_INTERRUPTIBLE	1
-#define TASK_UNINTERRUPTIBLE	2
-#define TASK_ZOMBIE		3
-#define TASK_STOPPED		4
+#define TASK_RUNNING			0	// 运行
+#define TASK_INTERRUPTIBLE		1	// 可中断睡眠
+#define TASK_UNINTERRUPTIBLE	2	// 不可中断睡眠
+#define TASK_ZOMBIE				3	// 僵死
+#define TASK_STOPPED			4	// 停止
 
 #ifndef NULL
 #define NULL ((void *) 0)
