@@ -18,7 +18,12 @@ __asm__ ("movl %%esp,%%eax\n\t" \
 #define nop() __asm__ ("nop"::)
 
 #define iret() __asm__ ("iret"::)
-
+///
+// 设置中断程序处理  
+// dpl 代表特权级 0#内核|3#用户
+// addr 中断处理程序的地址， 内存布局中的最终地址是：0x00080000+addr   第一句汇编之移动低16位到ax中
+// 0x8000 15位 + 特权级占两位
+///
 #define _set_gate(gate_addr,type,dpl,addr) \
 __asm__ ("movw %%dx,%%ax\n\t" \
 	"movw %0,%%dx\n\t" \

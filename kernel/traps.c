@@ -19,18 +19,21 @@
 #include <asm/segment.h>
 #include <asm/io.h>
 
+// 获取指定段和偏移的一个字节，即： 拿取这个[seg:addr]地址的1个字节
 #define get_seg_byte(seg,addr) ({ \
 register char __res; \
 __asm__("push %%fs;mov %%ax,%%fs;movb %%fs:%2,%%al;pop %%fs" \
 	:"=a" (__res):"0" (seg),"m" (*(addr))); \
 __res;})
 
+// 获取指定段和偏移的一个字节，即： 拿取这个[seg:addr]地址的4个字节
 #define get_seg_long(seg,addr) ({ \
 register unsigned long __res; \
 __asm__("push %%fs;mov %%ax,%%fs;movl %%fs:%2,%%eax;pop %%fs" \
 	:"=a" (__res):"0" (seg),"m" (*(addr))); \
 __res;})
 
+// 获取fs寄存器的值
 #define _fs() ({ \
 register unsigned short __res; \
 __asm__("mov %%fs,%%ax":"=a" (__res):); \
@@ -59,6 +62,7 @@ void parallel_interrupt(void);
 void irq13(void);
 void alignment_check(void);
 
+// 中断处理中，打印各种信息，用于调试
 static void die(char * str,long esp_ptr,long nr)
 {
 	long * esp = (long *) esp_ptr;
