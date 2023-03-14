@@ -114,7 +114,7 @@ TASK_STOPPED			4	暂停
 struct task_struct {
 /* these are hardcoded - don't touch */
 	long state;								// 进程的运行状态 =-1#unrunnable 不可运行 | 0#runnable，就绪，可运行  | >0# 以停止 
-	long counter;							// 任务运行时间计数  运行时间片 保存着进程在被暂停运行之前还能执行的时间滴答数  初次被创建时，count=priority
+	long counter;							// 任务运行时间计数  运行时间片 保存着进程在被暂停运行之前还能执行的时间嘀嗒数  初次被创建时，count=priority
 	long priority;							// 给count赋初值
 	long signal;							// 信号   格式：位图,每个比特位表示一个信号，信号值=位偏移值+1
 	struct sigaction sigaction[32];			// 信号将要执行的操作和标志信息
@@ -147,11 +147,11 @@ struct task_struct {
 	unsigned short egid;					// 有效的组id
 	unsigned short sgid;					// 保存的组id
 	unsigned long timeout;					// 内核定时器超时值
-	unsigned long alarm;					// 报警定时值（滴答数）
-	long utime;								// 用户态运行时间（滴答数）
-	long stime;								// 系统态运行时间（滴答数）
-	long cutime;							// 子进程用户态运行时间（滴答数）
-	long cstime;							// 子进程系统态运行时间（滴答数）
+	unsigned long alarm;					// 报警定时值（嘀嗒数）
+	long utime;								// 用户态运行时间（嘀嗒数）
+	long stime;								// 系统态运行时间（嘀嗒数）
+	long cutime;							// 子进程用户态运行时间（嘀嗒数）
+	long cstime;							// 子进程系统态运行时间（嘀嗒数）
 	long start_time;						// 进程开始运行的时间
 	struct rlimit rlim[RLIM_NLIMITS]; 		// 进程资源使用统计数组
 	unsigned int flags;						// 进程的标志，还未使用？ 

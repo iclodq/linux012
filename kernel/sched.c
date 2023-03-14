@@ -20,9 +20,15 @@
 
 #include <signal.h>
 
+// 获取信号在信号位图中的对应位的二进制数值   nr=5, -> 0b10000
+// 除了SIGKILL 和SIGSTOP信号外，其他信号都是可阻塞的
+
 #define _S(nr) (1<<((nr)-1))
 #define _BLOCKABLE (~(_S(SIGKILL) | _S(SIGSTOP)))
 
+// 调试函数，显示任务号位nr的进程号进程状态等
+// j表示内核栈最低的栈顶位置，因为任务的内核态栈是从页面末端开始
+// 且任务结构task_struct和任务的内核态栈在同一内存页面
 void show_task(int nr,struct task_struct * p)
 {
 	int i,j = 4096-sizeof(struct task_struct);
@@ -30,7 +36,7 @@ void show_task(int nr,struct task_struct * p)
 	printk("%d: pid=%d, state=%d, father=%d, child=%d, ",nr,p->pid,
 		p->state, p->p_pptr->pid, p->p_cptr ? p->p_cptr->pid : -1);
 	i=0;
-	while (i<j && !((char *)(p+1))[i])
+	while (i<j && !((char *)(p+1))[i])	// 计算内核堆栈中任务结构p后面有多少字节数据为0 
 		i++;
 	printk("%d/%d chars free in kstack\n\r",i,j);
 	printk("   PC=%08X.", *(1019 + (unsigned long *) p));
@@ -42,6 +48,7 @@ void show_task(int nr,struct task_struct * p)
 		printk("\n\r");
 }
 
+// 打印所有任务状态据
 void show_state(void)
 {
 	int i;
@@ -52,13 +59,15 @@ void show_state(void)
 			show_task(i,task[i]);
 }
 
+// 设置定时器中断频率 为100hz
 #define LATCH (1193180/HZ)
 
 extern void mem_use(void);
 
-extern int timer_interrupt(void);
-extern int system_call(void);
+extern int timer_interrupt(void);	// 定时中断  kernel/system_call.s 
+extern int system_call(void);		// 系统调用中断
 
+// 用于内核态任务堆栈结构  占用一个内存页的大小
 union task_union {
 	struct task_struct task;
 	char stack[PAGE_SIZE];
@@ -66,25 +75,30 @@ union task_union {
 
 static union task_union init_task = {INIT_TASK,};
 
-unsigned long volatile jiffies=0;
-unsigned long startup_time=0;
+unsigned long volatile jiffies=0;	// 嘀嗒 内核脉搏
+unsigned long startup_time=0;		// 开机时间 unix时间戳 秒
+// 用于累计需要调整的时间嘀嗒数
 int jiffies_offset = 0;		/* # clock ticks to add to get "true
 				   time".  Should always be less than
 				   1 second's worth.  For time fanatics
 				   who like to syncronize their machines
 				   to WWV :-) */
 
-struct task_struct *current = &(init_task.task);
-struct task_struct *last_task_used_math = NULL;
+struct task_struct *current = &(init_task.task);		// 当前任务指针(初始化指向任务0)
+struct task_struct *last_task_used_math = NULL;			// 使用过协处理器任务的指针
 
-struct task_struct * task[NR_TASKS] = {&(init_task.task), };
+struct task_struct * task[NR_TASKS] = {&(init_task.task), };	// 任务指针数组
 
-long user_stack [ PAGE_SIZE>>2 ] ;
+long user_stack [ PAGE_SIZE>>2 ] ;	// 任务0和任务1的用户态堆栈 1KB
 
 struct {
 	long * a;
 	short b;
 	} stack_start = { & user_stack [PAGE_SIZE>>2] , 0x10 };
+
+
+// 当任务调度交换后，需要把交换前的任务的协处理器状态保存，并加载新的任务的协处理器状态
+// 协处理器状态的存储与恢复
 /*
  *  'math_state_restore()' saves the current math information in the
  * old math state array, and gets the new ones from the current task
@@ -101,6 +115,7 @@ void math_state_restore()
 	if (current->used_math) {
 		__asm__("frstor %0"::"m" (current->tss.i387));
 	} else {
+		// 新任务第一次使用协处理器 向协处理器发送初始化命令
 		__asm__("fninit"::);
 		current->used_math=1;
 	}
@@ -116,6 +131,7 @@ void math_state_restore()
  * tasks can run. It can not be killed, and it cannot sleep. The 'state'
  * information in task[0] is never used.
  */
+ // 调度函数处理
 void schedule(void)
 {
 	int i,next,c;
