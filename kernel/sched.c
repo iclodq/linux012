@@ -168,18 +168,29 @@ void schedule(void)
 		next = 0;
 		i = NR_TASKS;
 		p = &task[NR_TASKS];
+		// 这里会默认跳过任务0的处理
 		while (--i) {
 			if (!*--p)
 				continue;
+			
+			// 找到任务是就绪状态且剩余运行时间最大的任务
 			if ((*p)->state == TASK_RUNNING && (*p)->counter > c)
 				c = (*p)->counter, next = i;
 		}
+		// 如果c==0，表示除0号外的所有就绪任务，都已调度运行完分配的时间片（嘀嗒数）
+		//		因而需要对所有任务进行重新分配时间
+		// 如果c==-1，表示没有就绪任务，执行0号任务（idle），这里假定counter>=0, 查看代码确实是
 		if (c) break;
+		
+		// 走到这里表示，已经没有可供运行的任务（比如任务的时间片用完，或者任务不是就绪状态）
+		// 对所有任务进行的时间片进行赋值
+		// counter = counter/2 + priority
 		for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 			if (*p)
 				(*p)->counter = ((*p)->counter >> 1) +
 						(*p)->priority;
 	}
+	// @doubt 切换执行任务
 	switch_to(next);
 }
 
@@ -190,18 +201,26 @@ int sys_pause(void)
 	return 0;
 }
 
+// 对当前任务设置成睡眠（可中断和不可中断）
+// 参数有要求：
+// 入参**p 表示一个等待队列的队头元素
+//		state=TASK_UNINTERRUPTIBLE|TASK_INTERRUPTIBLE
 static inline void __sleep_on(struct task_struct **p, int state)
 {
 	struct task_struct *tmp;
 
 	if (!p)
 		return;
+	// 0号任务不可睡眠
 	if (current == &(init_task.task))
 		panic("task[0] trying to sleep");
 	tmp = *p;
-	*p = current;
-	current->state = state;
+	*p = current;	// 设置外部需要修改的任务指针为当前任务
+	current->state = state;	// 对当前任务设置成 睡眠状态（中断或不可中断）
 repeat:	schedule();
+	// 执行调度后，current可能会被修改成其他任务
+	// 传入的指定任务不是当前任务，则设置成就绪状态
+	// 对当前任务设置成不可中断的睡眠
 	if (*p && *p != current) {
 		(**p).state = 0;
 		current->state = TASK_UNINTERRUPTIBLE;
@@ -213,16 +232,19 @@ repeat:	schedule();
 		tmp->state=0;
 }
 
+// 对当前任务 设置可中断睡眠
 void interruptible_sleep_on(struct task_struct **p)
 {
 	__sleep_on(p,TASK_INTERRUPTIBLE);
 }
 
+// 对当前任务 设置为不可中断睡眠 可用于保证中断程序和进程的同步机制
 void sleep_on(struct task_struct **p)
 {
 	__sleep_on(p,TASK_UNINTERRUPTIBLE);
 }
 
+// 唤醒任务
 void wake_up(struct task_struct **p)
 {
 	if (p && *p) {
@@ -304,12 +326,17 @@ void do_floppy_timer(void)
 
 #define TIME_REQUESTS 64
 
+// 当tiemr被触发后，fn会被置空 
+// next_timer为timer的有效队列头
 static struct timer_list {
 	long jiffies;
 	void (*fn)();
 	struct timer_list * next;
 } timer_list[TIME_REQUESTS], * next_timer = NULL;
 
+// 新加入的timer会被放到队尾，并且其时间jiffies会依次减去排在它前面的元素的jiffies
+
+// 从算法描述看，传入的jiffies需要是个固定值，或者比next_timer->jiffes大才正确
 void add_timer(long jiffies, void (*fn)(void))
 {
 	struct timer_list * p;
@@ -320,17 +347,24 @@ void add_timer(long jiffies, void (*fn)(void))
 	if (jiffies <= 0)
 		(fn)();
 	else {
+		// 找到可设置的timer的结构
 		for (p = timer_list ; p < timer_list + TIME_REQUESTS ; p++)
 			if (!p->fn)
 				break;
 		if (p >= timer_list + TIME_REQUESTS)
 			panic("No more time requests free");
+
 		p->fn = fn;
 		p->jiffies = jiffies;
 		p->next = next_timer;
 		next_timer = p;
+
+		// next_timer 可理解为list的队头，当插入新的timer后，会根据next链条一直处理到尾部
+		// 每个当前p会与它的下一个节点交换（如果jiffies值比他大），并把它的jiffies减掉它的父节点，最终队尾的有可能为负数
+		//	如果新加入的节点 jiffies 小于当前的队头节点的jiffies，逻辑就不对了  @doubt-bug
 		while (p->next && p->next->jiffies < p->jiffies) {
 			p->jiffies -= p->next->jiffies;
+			// 这里已经开始交换timer
 			fn = p->fn;
 			p->fn = p->next->fn;
 			p->next->fn = fn;
@@ -371,6 +405,8 @@ void do_timer(long cpl)
 		current->stime++;
 
 	if (next_timer) {
+		// 如果有timer队列
+		// 调度执行所有jiffies<=0的
 		next_timer->jiffies--;
 		while (next_timer && next_timer->jiffies <= 0) {
 			void (*fn)(void);
@@ -394,41 +430,49 @@ int sys_alarm(long seconds)
 	int old = current->alarm;
 
 	if (old)
-		old = (old - jiffies) / HZ;
+		old = (old - jiffies) / HZ;	// 需要换成时间  嘀嗒数*每嘀嗒时间（0.01秒）
 	current->alarm = (seconds>0)?(jiffies+HZ*seconds):0;
 	return (old);
 }
 
+// 获取进程的pid
 int sys_getpid(void)
 {
 	return current->pid;
 }
 
+// 获取父进程的pid
 int sys_getppid(void)
 {
 	return current->p_pptr->pid;
 }
 
+// 获取进程uid
 int sys_getuid(void)
 {
 	return current->uid;
 }
-
+// 获取进程有效的uid  euid
 int sys_geteuid(void)
 {
 	return current->euid;
 }
 
+// 获取进程的组号 gid
 int sys_getgid(void)
 {
 	return current->gid;
 }
 
+// 获取进程的有效组号  egid
 int sys_getegid(void)
 {
 	return current->egid;
 }
 
+// 降低进程的优先级
+// 当counter为0是， priority 会赋值给counter
+// 而counter是调度器中每个任务需要消耗的时间片  所以减少priority，就减少了进程的CPU占用时间
 int sys_nice(long increment)
 {
 	if (current->priority-increment>0)
@@ -436,6 +480,7 @@ int sys_nice(long increment)
 	return 0;
 }
 
+// 调度器初始化
 void sched_init(void)
 {
 	int i;
@@ -443,6 +488,9 @@ void sched_init(void)
 
 	if (sizeof(struct sigaction) != 16)
 		panic("Struct sigaction MUST be 16 bytes");
+	
+	// 在全局描述表gdt中设置0号任务的任务状态信息和局部描述符表信息
+	// gdt实际定义在head.s 中的_gdt 
 	set_tss_desc(gdt+FIRST_TSS_ENTRY,&(init_task.task.tss));
 	set_ldt_desc(gdt+FIRST_LDT_ENTRY,&(init_task.task.ldt));
 	p = gdt+2+FIRST_TSS_ENTRY;

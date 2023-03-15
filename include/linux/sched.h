@@ -44,7 +44,7 @@
 #endif
 
 #define TASK_RUNNING			0	// 运行
-#define TASK_INTERRUPTIBLE		1	// 可中断睡眠
+#define TASK_INTERRUPTIBLE		1	// 可中断睡眠 可被信号或警告唤醒
 #define TASK_UNINTERRUPTIBLE	2	// 不可中断睡眠
 #define TASK_ZOMBIE				3	// 僵死
 #define TASK_STOPPED			4	// 停止
@@ -247,6 +247,7 @@ __asm__("str %%ax\n\t" \
  * This also clears the TS-flag if the task we switched to has used
  * tha math co-processor latest.
  */
+ // 切换到任务号n
 #define switch_to(n) {\
 struct {long a,b;} __tmp; \
 __asm__("cmpl %%ecx,_current\n\t" \
