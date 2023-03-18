@@ -137,9 +137,9 @@ struct task_struct {
 	 * p->p_pptr->pid)
 	 */
 	struct task_struct	*p_pptr;			// 指向父进程的指针
-	struct taskt_struct *p_cptr; 			// 指向最新的一个此进程的指针
-	struct taskt_struct *p_ysptr;			// 指向比自己后创建的相邻进程的指针
-	struct taskt_struct *p_osptr;			// 指向比自己早创建的相邻进程的指针
+	struct taskt_struct *p_cptr; 			// 指向最新的一个子进程的指针
+	struct taskt_struct *p_ysptr;			// 指向比自己后创建的相邻进程的指针 younger
+	struct taskt_struct *p_osptr;			// 指向比自己早创建的相邻进程的指针	older
 	unsigned short uid;						// 用户id
 	unsigned short euid;					// 有效用户id
 	unsigned short suid;					// 保存的用户id

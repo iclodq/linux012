@@ -1,6 +1,8 @@
 /*
  * 'kernel.h' contains some often-used function prototypes etc
  */
+
+// 定义在 fork.c中
 void verify_area(void * addr,int count);
 volatile void panic(const char * str);
 volatile void do_exit(long error_code);

@@ -55,10 +55,11 @@ struct tty_queue {
 #define STOP_CHAR(tty) ((tty)->termios.c_cc[VSTOP])
 #define SUSPEND_CHAR(tty) ((tty)->termios.c_cc[VSUSP])
 
+// 终端的结构  teletype
 struct tty_struct {
 	struct termios termios;
-	int pgrp;
-	int session;
+	int pgrp;									// 所属进程组
+	int session;								// 所属会话
 	int stopped;
 	void (*write)(struct tty_struct * tty);
 	struct tty_queue *read_q;

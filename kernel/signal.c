@@ -16,6 +16,7 @@ int sys_sgetmask()
 	return current->blocked;
 }
 
+// 设置信号屏蔽码
 int sys_ssetmask(int newmask)
 {
 	int old=current->blocked;
