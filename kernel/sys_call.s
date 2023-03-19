@@ -218,6 +218,7 @@ _sys_execve:
 	addl $4,%esp
 	ret
 
+// 系统调用：sys_fork
 .align 2
 _sys_fork:
 	call _find_empty_process

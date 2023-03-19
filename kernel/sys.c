@@ -23,8 +23,11 @@
  */
 struct timezone sys_tz = { 0, 0};
 
+// 获取进程组所属的会话号(session)
+// 定义在exit.c中
 extern int session_of_pgrp(int pgrp);
 
+// 返回ENOSYS，表示当前版本并未实现
 int sys_ftime()
 {
 	return -ENOSYS;
@@ -81,6 +84,7 @@ int sys_setregid(int rgid, int egid)
 			return(-EPERM);
 	}
 	if (egid>0) {
+		// 组id设置失败，没还原gid的设置
 		if ((current->gid == egid) ||
 		    (current->egid == egid) ||
 		    suser()) {
@@ -131,6 +135,7 @@ int sys_ulimit()
 	return -ENOSYS;
 }
 
+// 获取系统时间 unix时间戳  秒
 int sys_time(long * tloc)
 {
 	int i;
@@ -156,6 +161,7 @@ int sys_time(long * tloc)
  * 100% compatible with BSD.  A program which uses just setuid() will be
  * 100% compatible with POSIX w/ Saved ID's. 
  */
+ // 兼容BSD权限设置 
 int sys_setreuid(int ruid, int euid)
 {
 	int old_ruid = current->uid;
@@ -193,6 +199,7 @@ int sys_setreuid(int ruid, int euid)
  * will allow a root program to temporarily drop privileges and be able to
  * regain them by swapping the real and effective uid.  
  */
+ // 兼容POSIX设置
 int sys_setuid(int uid)
 {
 	if (suser())
@@ -204,6 +211,7 @@ int sys_setuid(int uid)
 	return(0);
 }
 
+// 设置开机时间 root权限
 int sys_stime(long * tptr)
 {
 	if (!suser())
@@ -213,6 +221,7 @@ int sys_stime(long * tptr)
 	return 0;
 }
 
+// 获取当前任务时间统计
 int sys_times(struct tms * tbuf)
 {
 	if (tbuf) {
@@ -225,6 +234,7 @@ int sys_times(struct tms * tbuf)
 	return jiffies;
 }
 
+// 设置程序在内存中的末端位置
 int sys_brk(unsigned long end_data_seg)
 {
 	if (end_data_seg >= current->end_code &&
@@ -242,6 +252,8 @@ int sys_brk(unsigned long end_data_seg)
  * only important on a multi-user system anyway, to make sure one user
  * can't send a signal to a process owned by another.  -TYT, 12/12/91
  */
+ // 设置组ID
+ // 会话/组的建立是为了满足多用户系统的设计，避免一个用户发送信号到另一个用户的进程
 int sys_setpgid(int pid, int pgid)
 {
 	int i; 
@@ -249,15 +261,20 @@ int sys_setpgid(int pid, int pgid)
 	if (!pid)
 		pid = current->pid;
 	if (!pgid)
-		pgid = current->pid;
+		pgid = current->pid;	// 与POSIX标准不一致？
 	if (pgid < 0)
 		return -EINVAL;
+	
+	// 找到指定pid，如果是当前进程或当前进程的子进程
 	for (i=0 ; i<NR_TASKS ; i++)
 		if (task[i] && (task[i]->pid == pid) &&
 		    ((task[i]->p_pptr == current) || 
 		     (task[i] == current))) {
 			if (task[i]->leader)
+				// 会话领导 出错
 				return -EPERM;
+
+			// 检查进程组会话, 待验
 			if ((task[i]->session != current->session) ||
 			    ((pgid != pid) && 
 			     (session_of_pgrp(pgid) != current->session)))
@@ -268,24 +285,29 @@ int sys_setpgid(int pid, int pgid)
 	return -ESRCH;
 }
 
+// 返回当前进程的组号
 int sys_getpgrp(void)
 {
 	return current->pgrp;
 }
 
+// 设置会话  创建会话
+// 返回会话号
 int sys_setsid(void)
 {
 	if (current->leader && !suser())
 		return -EPERM;
 	current->leader = 1;
 	current->session = current->pgrp = current->pid;
-	current->tty = -1;
+	current->tty = -1;	// 设置为没有终端
 	return current->pgrp;
 }
 
 /*
  * Supplementary group ID's
  */
+ // 获取当前进程的其他组好
+ // gitsetsize 表示grouplist的大小
 int sys_getgroups(int gidsetsize, gid_t *grouplist)
 {
 	int	i;
@@ -304,6 +326,7 @@ int sys_getgroups(int gidsetsize, gid_t *grouplist)
 	return(i);
 }
 
+// 设置当前进程的其他组号
 int sys_setgroups(int gidsetsize, gid_t *grouplist)
 {
 	int	i;
@@ -312,14 +335,17 @@ int sys_setgroups(int gidsetsize, gid_t *grouplist)
 		return -EPERM;
 	if (gidsetsize > NGROUPS)
 		return -EINVAL;
+	// 这里没验证大小 verify_area？？
 	for (i = 0; i < gidsetsize; i++, grouplist++) {
 		current->groups[i] = get_fs_word((unsigned short *) grouplist);
 	}
+	// 尾号为-1，类似字符串中的'\0'
 	if (i < NGROUPS)
 		current->groups[i] = NOGROUP;
 	return 0;
 }
 
+// 检查当前进程是否在组号中
 int in_group_p(gid_t grp)
 {
 	int	i;
@@ -340,6 +366,7 @@ static struct utsname thisname = {
 	UTS_SYSNAME, UTS_NODENAME, UTS_RELEASE, UTS_VERSION, UTS_MACHINE
 };
 
+// 获取系统信息
 int sys_uname(struct utsname * name)
 {
 	int i;
@@ -354,6 +381,7 @@ int sys_uname(struct utsname * name)
 /*
  * Only sethostname; gethostname can be implemented by calling uname()
  */
+ // 设置主机名
 int sys_sethostname(char *name, int len)
 {
 	int	i;
@@ -372,6 +400,7 @@ int sys_sethostname(char *name, int len)
 	return 0;
 }
 
+// 获取当前进程的资源限制
 int sys_getrlimit(int resource, struct rlimit *rlim)
 {
 	if (resource >= RLIM_NLIMITS)
@@ -384,6 +413,7 @@ int sys_getrlimit(int resource, struct rlimit *rlim)
 	return 0;	
 }
 
+// 设置资源限制
 int sys_setrlimit(int resource, struct rlimit *rlim)
 {
 	struct rlimit new, *old;
@@ -409,6 +439,7 @@ int sys_setrlimit(int resource, struct rlimit *rlim)
  * a lot simpler!  (Which we're not doing right now because we're not
  * measuring them yet).
  */
+ // 获取进程的资源使用信息
 int sys_getrusage(int who, struct rusage *ru)
 {
 	struct rusage r;
@@ -437,6 +468,7 @@ int sys_getrusage(int who, struct rusage *ru)
 	return(0);
 }
 
+// 获取系统时间
 int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 {
 	if (tv) {
@@ -512,6 +544,7 @@ void adjust_clock()
 	startup_time += sys_tz.tz_minuteswest*60;
 }
 
+// 设置当前进程文件屏蔽码	
 int sys_umask(int mask)
 {
 	int old = current->umask;

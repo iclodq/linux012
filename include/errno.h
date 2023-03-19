@@ -19,7 +19,7 @@ extern int errno;
 #define ERROR		99
 #define EPERM		 1
 #define ENOENT		 2
-#define ESRCH		 3
+#define ESRCH		 3              // 未找到进程/Task
 #define EINTR		 4
 #define EIO		 5
 #define ENXIO		 6
@@ -38,7 +38,7 @@ extern int errno;
 #define ENODEV		19
 #define ENOTDIR		20
 #define EISDIR		21
-#define EINVAL		22
+#define EINVAL		22              // 传入的参数非法
 #define ENFILE		23
 #define EMFILE		24
 #define ENOTTY		25
@@ -54,7 +54,7 @@ extern int errno;
 #define EDEADLK		35
 #define ENAMETOOLONG	36
 #define ENOLCK		37
-#define ENOSYS		38
+#define ENOSYS		38          // 当前版本并未实现
 #define ENOTEMPTY	39
 
 /* Should never be seen by user programs */

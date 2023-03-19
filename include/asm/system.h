@@ -56,6 +56,17 @@ __asm__ ("movw %%dx,%%ax\n\t" \
 	*((gate_addr)+1) = (((base) & 0x0000ffff)<<16) | \
 		((limit) & 0x0ffff); }
 
+// 设置 tss ldt 描述符
+/*
+	"movw $104,%1\n\t" 		//设置段限长104字节
+	"movw %%ax,%2\n\t" 
+	"rorl $16,%%eax\n\t" 
+	"movb %%al,%3\n\t" 
+	"movb $" type ",%4\n\t" 
+	"movb $0x00,%5\n\t" 
+	"movb %%ah,%6\n\t" 
+	"rorl $16,%%eax" 
+	*/
 #define _set_tssldt_desc(n,addr,type) \
 __asm__ ("movw $104,%1\n\t" \
 	"movw %%ax,%2\n\t" \

@@ -19,7 +19,7 @@
 
 extern void write_verify(unsigned long address);
 
-long last_pid=0;
+long last_pid=0;	// 新进程号，由find_empty_process得到，并且，
 
 void verify_area(void * addr,int size)
 {
@@ -93,7 +93,7 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->tss.ss0 = 0x10;
 	p->tss.eip = eip;
 	p->tss.eflags = eflags;
-	p->tss.eax = 0;
+	p->tss.eax = 0;			// fork调用的放回值
 	p->tss.ecx = ecx;
 	p->tss.edx = edx;
 	p->tss.ebx = ebx;
@@ -111,11 +111,15 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->tss.trace_bitmap = 0x80000000;
 	if (last_task_used_math == current)
 		__asm__("clts ; fnsave %0 ; frstor %0"::"m" (p->tss.i387));
+
+	// 申请内存 若失败则需释放
 	if (copy_mem(nr,p)) {
 		task[nr] = NULL;
 		free_page((long) p);
 		return -EAGAIN;
 	}
+
+	// 维护文件系统
 	for (i=0; i<NR_OPEN;i++)
 		if (f=p->filp[i])
 			f->f_count++;
@@ -127,8 +131,12 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 		current->executable->i_count++;
 	if (current->library)
 		current->library->i_count++;
+
+	// 每个进程的tss ldt 都占两个条目，所以(nr<<1)，且他们都限长104字节
 	set_tss_desc(gdt+(nr<<1)+FIRST_TSS_ENTRY,&(p->tss));
 	set_ldt_desc(gdt+(nr<<1)+FIRST_LDT_ENTRY,&(p->ldt));
+
+	// 维护进程间关系链
 	p->p_pptr = current;
 	p->p_cptr = 0;
 	p->p_ysptr = 0;
@@ -140,12 +148,15 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	return last_pid;
 }
 
+// 为新进程取得不重复的进程号
 int find_empty_process(void)
 {
 	int i;
 
+	// 挺费的，定义个64位图就好了
 	repeat:
 		if ((++last_pid)<0) last_pid=1;
+		// 检查当前的last_pid是否被使用，加了pgrp判断，会让迭代快速一点
 		for(i=0 ; i<NR_TASKS ; i++)
 			if (task[i] && ((task[i]->pid == last_pid) ||
 				        (task[i]->pgrp == last_pid)))

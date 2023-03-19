@@ -51,13 +51,14 @@ struct	rusage {
 #define RLIMIT_OFILE	8		/* max number of open files */
 #endif
 
-#define RLIM_NLIMITS	6
+#define RLIM_NLIMITS	6		// 资源类型限制数量
 
 #define RLIM_INFINITY	0x7fffffff
 
+// 资源限制结构
 struct rlimit {
-	int	rlim_cur;
-	int	rlim_max;
+	int	rlim_cur;	// 进程对某资源类型的当前限制 (soft limit 软限制)
+	int	rlim_max;	// 进程对某资源类型的最大限制（hard limit 硬限制）
 };
 
 #endif /* _SYS_RESOURCE_H */

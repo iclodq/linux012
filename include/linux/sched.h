@@ -130,7 +130,7 @@ struct task_struct {
 	long pgrp;								// 进程组号
 	long session;							// 会话号
 	long leader;							// 会话首领
-	int	groups[NGROUPS];					// 进程所属组号，一个进程可属于多个组
+	int	groups[NGROUPS];					// 进程所属组号，一个进程可属于多个组 NOGROUP表示无
 	/* 
 	 * pointers to parent process, youngest child, younger sibling,
 	 * older sibling, respectively.  (p->father can be replaced with 
