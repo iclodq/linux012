@@ -29,6 +29,7 @@ struct task_struct * wait_for_request = NULL;
  *	do_request-address
  *	next-request
  */
+ // 块设备列表
 struct blk_dev_struct blk_dev[NR_BLK_DEV] = {
 	{ NULL, NULL },		/* no_dev */
 	{ NULL, NULL },		/* dev mem */
@@ -46,8 +47,12 @@ struct blk_dev_struct blk_dev[NR_BLK_DEV] = {
  *
  * if (!blk_size[MAJOR]) then no minor size checking is done.
  */
+ // 每个指定设备的块数量
 int * blk_size[NR_BLK_DEV] = { NULL, NULL, };
 
+///
+/// 锁缓冲区
+//	如果缓冲区已被所住，则休眠
 static inline void lock_buffer(struct buffer_head * bh)
 {
 	cli();
@@ -57,6 +62,8 @@ static inline void lock_buffer(struct buffer_head * bh)
 	sti();
 }
 
+///	解锁缓冲区
+//	唤醒等待区任务
 static inline void unlock_buffer(struct buffer_head * bh)
 {
 	if (!bh->b_lock)
