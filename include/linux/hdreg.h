@@ -25,7 +25,7 @@
 #define INDEX_STAT	0x02
 #define ECC_STAT	0x04	/* Corrected error */
 #define DRQ_STAT	0x08
-#define SEEK_STAT	0x10
+#define SEEK_STAT	0x10		// 寻道
 #define WRERR_STAT	0x20
 #define READY_STAT	0x40
 #define BUSY_STAT	0x80
@@ -49,6 +49,7 @@
 #define ECC_ERR		0x40	/* ? */
 #define	BBD_ERR		0x80	/* ? */
 
+// 分区表信息
 struct partition {
 	unsigned char boot_ind;		/* 0x80 - active (unused) */
 	unsigned char head;		/* ? */

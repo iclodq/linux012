@@ -196,6 +196,7 @@ repeat:
 	return __res;
 }
 
+// 初始化交换设备
 void init_swapping(void)
 {
 	extern int *blk_size[];

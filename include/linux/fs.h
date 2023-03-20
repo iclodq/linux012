@@ -70,15 +70,16 @@ void buffer_init(long buffer_end);
 
 typedef char buffer_block[BLOCK_SIZE];
 
+// 缓冲区头
 struct buffer_head {
-	char * b_data;			/* pointer to data block (1024 bytes) */
+	char * b_data;			/* pointer to data block (1024 bytes) */	// 读取的数据块指针
 	unsigned long b_blocknr;	/* block number */
 	unsigned short b_dev;		/* device (0 = free) */
 	unsigned char b_uptodate;
 	unsigned char b_dirt;		/* 0-clean,1-dirty */
 	unsigned char b_count;		/* users using this block */
 	unsigned char b_lock;		/* 0 - ok, 1 -locked */
-	struct task_struct * b_wait;
+	struct task_struct * b_wait;								// 等待此缓冲区的任务
 	struct buffer_head * b_prev;
 	struct buffer_head * b_next;
 	struct buffer_head * b_prev_free;
@@ -194,6 +195,7 @@ extern struct buffer_head * getblk(int dev, int block);
 extern void ll_rw_block(int rw, struct buffer_head * bh);
 extern void ll_rw_page(int rw, int dev, int nr, char * buffer);
 extern void brelse(struct buffer_head * buf);
+// 读取设备号dev的 指定块的数据(block 从0开始)
 extern struct buffer_head * bread(int dev,int block);
 extern void bread_page(unsigned long addr,int dev,int b[4]);
 extern struct buffer_head * breada(int dev,int block,...);
@@ -205,6 +207,7 @@ extern int sync_dev(int dev);
 extern struct super_block * get_super(int dev);
 extern int ROOT_DEV;
 
+// 挂在根文件系统  定义在super.c中
 extern void mount_root(void);
 
 #endif
