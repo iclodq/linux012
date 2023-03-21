@@ -26,13 +26,15 @@
 #include <asm/system.h>
 #include <asm/io.h>
 
-extern int end;
-struct buffer_head * start_buffer = (struct buffer_head *) &end;
-struct buffer_head * hash_table[NR_HASH];
-static struct buffer_head * free_list;
-static struct task_struct * buffer_wait = NULL;
-int NR_BUFFERS = 0;
+extern int end;	// 由链接器生成，指明内核执行模块的末端位置
+struct buffer_head * start_buffer = (struct buffer_head *) &end;		// 缓冲器开始地址
+struct buffer_head * hash_table[NR_HASH];								// 缓冲区Hash表
+static struct buffer_head * free_list;									// 空闲列表
+static struct task_struct * buffer_wait = NULL;							// 等待空闲缓冲区的任务队列
+int NR_BUFFERS = 0;														// 系统含有缓冲块个数
 
+/// 等待指定缓冲区 如果有，就睡眠
+//	关中断只会影响调用进程，其他进程不影响。是通过TSS.flags保存每个任务的这些标记
 static inline void wait_on_buffer(struct buffer_head * bh)
 {
 	cli();
@@ -41,6 +43,9 @@ static inline void wait_on_buffer(struct buffer_head * bh)
 	sti();
 }
 
+/// 设备数据同步
+//	同步设备和内存高速缓冲区中数据
+//	同步会把所有修改过的i节点写入高速缓冲
 int sys_sync(void)
 {
 	int i;
@@ -48,6 +53,7 @@ int sys_sync(void)
 
 	sync_inodes();		/* write out inodes into buffers */
 	bh = start_buffer;
+	/// 便利缓冲块，有脏标记就写入设备中
 	for (i=0 ; i<NR_BUFFERS ; i++,bh++) {
 		wait_on_buffer(bh);
 		if (bh->b_dirt)
@@ -56,6 +62,7 @@ int sys_sync(void)
 	return 0;
 }
 
+///	对指定设备进行高速换冲突的同步操作 
 int sync_dev(int dev)
 {
 	int i;
@@ -66,9 +73,11 @@ int sync_dev(int dev)
 		if (bh->b_dev != dev)
 			continue;
 		wait_on_buffer(bh);
+		// 下面需要再判断一次设备，可能是因为再等待后，该缓冲块被其他进程使用
 		if (bh->b_dev == dev && bh->b_dirt)
 			ll_rw_block(WRITE,bh);
 	}
+	/// 再次同步
 	sync_inodes();
 	bh = start_buffer;
 	for (i=0 ; i<NR_BUFFERS ; i++,bh++) {
@@ -81,6 +90,8 @@ int sync_dev(int dev)
 	return 0;
 }
 
+/// 使指定设备的高速缓冲区数据无效
+//	扫描所有缓冲区，是属于设备的缓冲区的更新标记和脏标记置0
 void inline invalidate_buffers(int dev)
 {
 	int i;
@@ -110,11 +121,12 @@ void inline invalidate_buffers(int dev)
  * and that mount/open needn't know that floppies/whatever are
  * special.
  */
+ /// 检查设备是否更换，如果更换则清理对应的缓冲区
 void check_disk_change(int dev)
 {
 	int i;
 
-	if (MAJOR(dev) != 2)
+	if (MAJOR(dev) != 2)	// 检查是不是软盘
 		return;
 	if (!floppy_change(dev & 0x03))
 		return;
@@ -125,9 +137,11 @@ void check_disk_change(int dev)
 	invalidate_buffers(dev);
 }
 
+// hash函数计算
 #define _hashfn(dev,block) (((unsigned)(dev^block))%NR_HASH)
 #define hash(dev,block) hash_table[_hashfn(dev,block)]
 
+/// 从hash队列和空闲缓冲队列中移走缓冲区
 static inline void remove_from_queues(struct buffer_head * bh)
 {
 /* remove from hash-queue */
@@ -135,8 +149,10 @@ static inline void remove_from_queues(struct buffer_head * bh)
 		bh->b_next->b_prev = bh->b_prev;
 	if (bh->b_prev)
 		bh->b_prev->b_next = bh->b_next;
+	// 维护hash头
 	if (hash(bh->b_dev,bh->b_blocknr) == bh)
 		hash(bh->b_dev,bh->b_blocknr) = bh->b_next;
+
 /* remove from free list */
 	if (!(bh->b_prev_free) || !(bh->b_next_free))
 		panic("Free block list corrupted");

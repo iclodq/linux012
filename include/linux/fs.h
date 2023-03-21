@@ -73,17 +73,17 @@ typedef char buffer_block[BLOCK_SIZE];
 // 缓冲区头
 struct buffer_head {
 	char * b_data;			/* pointer to data block (1024 bytes) */	// 读取的数据块指针
-	unsigned long b_blocknr;	/* block number */
-	unsigned short b_dev;		/* device (0 = free) */
-	unsigned char b_uptodate;
-	unsigned char b_dirt;		/* 0-clean,1-dirty */
-	unsigned char b_count;		/* users using this block */
-	unsigned char b_lock;		/* 0 - ok, 1 -locked */
-	struct task_struct * b_wait;								// 等待此缓冲区的任务
-	struct buffer_head * b_prev;
-	struct buffer_head * b_next;
-	struct buffer_head * b_prev_free;
-	struct buffer_head * b_next_free;
+	unsigned long b_blocknr;	/* block number */						// 块号
+	unsigned short b_dev;		/* device (0 = free) */					// 数据源的设备号 0表示空闲
+	unsigned char b_uptodate;											// 更新标记，表示数据是否已更新
+	unsigned char b_dirt;		/* 0-clean,1-dirty */					// 修改标记，0#没有|1#有修改
+	unsigned char b_count;		/* users using this block */			// 使用该块的用户数
+	unsigned char b_lock;		/* 0 - ok, 1 -locked */					// 是否被锁定 =0#未锁|1#锁住
+	struct task_struct * b_wait;										// 等待此缓冲区的任务
+	struct buffer_head * b_prev;										// hash队列上前一块
+	struct buffer_head * b_next;										// hash队列上后一块
+	struct buffer_head * b_prev_free;									// 空前列表前一块
+	struct buffer_head * b_next_free;									// 空闲列表后一块
 };
 
 struct d_inode {
@@ -192,6 +192,9 @@ extern struct m_inode * get_empty_inode(void);
 extern struct m_inode * get_pipe_inode(void);
 extern struct buffer_head * get_hash_table(int dev, int block);
 extern struct buffer_head * getblk(int dev, int block);
+
+/// 低级读写块,会把hb中所指的数据写入设备中，
+//	或者从设备读取bh设定指定块数据到缓冲区
 extern void ll_rw_block(int rw, struct buffer_head * bh);
 extern void ll_rw_page(int rw, int dev, int nr, char * buffer);
 extern void brelse(struct buffer_head * buf);
