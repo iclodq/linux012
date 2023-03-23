@@ -127,27 +127,43 @@ struct file {
 	struct m_inode * f_inode;
 	off_t f_pos;
 };
+/*
+  磁盘
+  ┌────────┬───────┬─────────┬──────────┬──────────────────────────┬────────────────────────────────┐
+  │ boot   │ super │ inode   │ logic    │   inode inode inode ...  │            data zone           │
+  │ block  │ block │ bitmap  │ bitmap   │                          │                                │
+  │        │       │         │          │                          │                                │
+  │        │       │         │          │                          │                                │
+  │        │       │         │          │                          │                                │
+  └────────┴───────┴─────────┴──────────┴──────────────────────────┴────────────────────────────────┘
+  逻辑块位图中每个比特位一次代表盘上数据区的一个逻辑块 所以第一位bit位置1，表示数据区的第一个块，而不是整个磁盘的第一个块（引导块）
+  当数组区中的一个块被占用后，逻辑块位图中对应的比特位置一。
 
+  由于查找空闲数据块的函数在所有数据块都被占用时会返回0，因此逻辑块位图最低比特位会置一，然后闲置不用。
+*/
+
+
+/// 超级块，用于存放设备上文件系统的结构信息，并说明各部分的大小。
 struct super_block {
-	unsigned short s_ninodes;
-	unsigned short s_nzones;
-	unsigned short s_imap_blocks;
-	unsigned short s_zmap_blocks;
-	unsigned short s_firstdatazone;
-	unsigned short s_log_zone_size;
-	unsigned long s_max_size;
-	unsigned short s_magic;
+	unsigned short s_ninodes;			// 设备上的inode节点数量
+	unsigned short s_nzones;			// 设备上以逻辑块为单位的总数
+	unsigned short s_imap_blocks;		// inode的位图
+	unsigned short s_zmap_blocks;		// 逻辑块的位图
+	unsigned short s_firstdatazone;		// 数据区中第一个逻辑块块号
+	unsigned short s_log_zone_size;		// log2(磁盘块数/逻辑块数)
+	unsigned long s_max_size;			// 最大文件长度
+	unsigned short s_magic;				// 文件系统幻数
 /* These are only in memory */
-	struct buffer_head * s_imap[8];
-	struct buffer_head * s_zmap[8];
-	unsigned short s_dev;
-	struct m_inode * s_isup;
-	struct m_inode * s_imount;
-	unsigned long s_time;
-	struct task_struct * s_wait;
-	unsigned char s_lock;
-	unsigned char s_rd_only;
-	unsigned char s_dirt;
+	struct buffer_head * s_imap[8];		// i节点位图在高速缓冲块指针数组
+	struct buffer_head * s_zmap[8];		// 逻辑块位图在高速缓冲块指针数组
+	unsigned short s_dev;				// 超级快所在设备号
+	struct m_inode * s_isup;			// 被安装文件系统的根目录的i节点
+	struct m_inode * s_imount;			// 该文件系统被安装到的i节点
+	unsigned long s_time;				// 修改时间
+	struct task_struct * s_wait;		// 等待此超级块的进程指针
+	unsigned char s_lock;				// 锁定标志
+	unsigned char s_rd_only;			// 只读标志
+	unsigned char s_dirt;				// 被修改后的脏标记
 };
 
 struct d_super_block {
