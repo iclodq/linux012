@@ -177,9 +177,10 @@ struct d_super_block {
 	unsigned short s_magic;
 };
 
+// 文件目录项
 struct dir_entry {
-	unsigned short inode;
-	char name[NAME_LEN];
+	unsigned short inode;		// i节点
+	char name[NAME_LEN];		// 文件名
 };
 
 extern struct m_inode inode_table[NR_INODE];
