@@ -75,9 +75,9 @@ struct buffer_head {
 	char * b_data;			/* pointer to data block (1024 bytes) */	// 读取的数据块指针
 	unsigned long b_blocknr;	/* block number */						// 块号
 	unsigned short b_dev;		/* device (0 = free) */					// 数据源的设备号 0表示空闲
-	unsigned char b_uptodate;											// 更新标记，表示数据是否已更新
-	unsigned char b_dirt;		/* 0-clean,1-dirty */					// 修改标记，0#没有|1#有修改
-	unsigned char b_count;		/* users using this block */			// 使用该块的用户数
+	unsigned char b_uptodate;											// 更新标记，表示已从数据块中读书数据到缓冲区了
+	unsigned char b_dirt;		/* 0-clean,1-dirty */					// 修改标记，0#没有|1#有修改,需要写入磁盘
+	unsigned char b_count;		/* users using this block */			// 使用该块的进程数量 根据它判断是否释放
 	unsigned char b_lock;		/* 0 - ok, 1 -locked */					// 是否被锁定 =0#未锁|1#锁住
 	struct task_struct * b_wait;										// 等待此缓冲区的任务
 	struct buffer_head * b_prev;										// hash队列上前一块
@@ -86,33 +86,35 @@ struct buffer_head {
 	struct buffer_head * b_next_free;									// 空闲列表后一块
 };
 
+///数据区得inode节点信息
 struct d_inode {
-	unsigned short i_mode;
-	unsigned short i_uid;
-	unsigned long i_size;
-	unsigned long i_time;
-	unsigned char i_gid;
-	unsigned char i_nlinks;
-	unsigned short i_zone[9];
+	unsigned short i_mode;			// 文件类型和属性
+	unsigned short i_uid;			// 文件宿主用户id
+	unsigned long i_size;			// 文件长度
+	unsigned long i_time;			// 修改时间
+	unsigned char i_gid;			// 文组所属组id
+	unsigned char i_nlinks;			// 链接数量
+	unsigned short i_zone[9];		// 文件所占用得逻辑块号 数组
 };
 
+/// i节点
 struct m_inode {
-	unsigned short i_mode;
-	unsigned short i_uid;
-	unsigned long i_size;
-	unsigned long i_mtime;
-	unsigned char i_gid;
-	unsigned char i_nlinks;
-	unsigned short i_zone[9];
+	unsigned short i_mode;			// 文件类型和属性
+	unsigned short i_uid;			// 文件宿主用户id
+	unsigned long i_size;			// 文件长度
+	unsigned long i_time;			// 修改时间
+	unsigned char i_gid;			// 文组所属组id
+	unsigned char i_nlinks;			// 链接数量
+	unsigned short i_zone[9];		// 文件所占用得逻辑块号 数组
 /* these are in memory also */
 	struct task_struct * i_wait;
 	struct task_struct * i_wait2;	/* for pipes */
 	unsigned long i_atime;
 	unsigned long i_ctime;
-	unsigned short i_dev;
+	unsigned short i_dev;			// 设备号
 	unsigned short i_num;
 	unsigned short i_count;
-	unsigned char i_lock;
+	unsigned char i_lock;			// 锁标记
 	unsigned char i_dirt;
 	unsigned char i_pipe;
 	unsigned char i_mount;
@@ -120,6 +122,7 @@ struct m_inode {
 	unsigned char i_update;
 };
 
+/// 文件结构信息
 struct file {
 	unsigned short f_mode;
 	unsigned short f_flags;
@@ -224,6 +227,8 @@ extern int free_block(int dev, int block);
 extern struct m_inode * new_inode(int dev);
 extern void free_inode(struct m_inode * inode);
 extern int sync_dev(int dev);
+
+/// 获取指定设备号得超级块
 extern struct super_block * get_super(int dev);
 extern int ROOT_DEV;
 

@@ -240,6 +240,7 @@ repeat:
 }	
 
 /// 低级读写块
+//	进程可能会在其中睡眠
 void ll_rw_block(int rw, struct buffer_head * bh)
 {
 	unsigned int major;

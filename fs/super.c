@@ -24,6 +24,7 @@ register int __res __asm__("ax"); \
 __asm__("bt %2,%3;setb %%al":"=a" (__res):"a" (0),"r" (bitnr),"m" (*(addr))); \
 __res; })
 
+// 超级块
 struct super_block super_block[NR_SUPER];
 /* this is initialized in init/main.c */
 int ROOT_DEV = 0;
@@ -45,6 +46,7 @@ static void free_super(struct super_block * sb)
 	sti();
 }
 
+/// 等待超级块闲置，没有锁，以保证超级块再此后是可以直接被使用得
 static void wait_on_super(struct super_block * sb)
 {
 	cli();
@@ -53,6 +55,7 @@ static void wait_on_super(struct super_block * sb)
 	sti();
 }
 
+/// 获取指定设备号的可使用的超级块
 struct super_block * get_super(int dev)
 {
 	struct super_block * s;

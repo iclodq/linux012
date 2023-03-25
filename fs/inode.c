@@ -14,11 +14,13 @@
 
 extern int *blk_size[];
 
+// i节点表
 struct m_inode inode_table[NR_INODE]={{0,},};
 
 static void read_inode(struct m_inode * inode);
 static void write_inode(struct m_inode * inode);
 
+/// 等待inode，如果没有被锁，就是没进程使用
 static inline void wait_on_inode(struct m_inode * inode)
 {
 	cli();
@@ -58,6 +60,7 @@ void invalidate_inodes(int dev)
 	}
 }
 
+/// 同步所有i节点数据
 void sync_inodes(void)
 {
 	int i;
@@ -66,6 +69,7 @@ void sync_inodes(void)
 	inode = 0+inode_table;
 	for(i=0 ; i<NR_INODE ; i++,inode++) {
 		wait_on_inode(inode);
+		// i节点是脏的且不是管道类型
 		if (inode->i_dirt && !inode->i_pipe)
 			write_inode(inode);
 	}
@@ -334,8 +338,10 @@ static void write_inode(struct m_inode * inode)
 	}
 	if (!(sb=get_super(inode->i_dev)))
 		panic("trying to write inode without device");
+	
+	// 计算在设备中的逻辑块号
 	block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks +
-		(inode->i_num-1)/INODES_PER_BLOCK;
+		(inode->i_num-1)/INODES_PER_BLOCK;		
 	if (!(bh=bread(inode->i_dev,block)))
 		panic("unable to read i-node block");
 	((struct d_inode *)bh->b_data)
