@@ -290,7 +290,7 @@ repeat:
 	return bh;
 }
 
-/// 释放高速缓冲区，并唤醒等待空闲缓冲区的进程
+/// 释放高速缓冲区（引用计数减一），并唤醒等待空闲缓冲区的进程
 void brelse(struct buffer_head * buf)
 {
 	if (!buf)

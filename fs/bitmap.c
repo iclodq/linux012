@@ -10,24 +10,28 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 
+// 清理块数据置0 
 #define clear_block(addr) \
 __asm__("cld\n\t" \
 	"rep\n\t" \
 	"stosl" \
 	::"a" (0),"c" (BLOCK_SIZE/4),"D" ((long) (addr)):"cx","di")
 
+/// 设置指定地址开始的多少位偏移的比特位为1
 #define set_bit(nr,addr) ({\
 register int res __asm__("ax"); \
 __asm__ __volatile__("btsl %2,%3\n\tsetb %%al": \
 "=a" (res):"0" (0),"r" (nr),"m" (*(addr))); \
 res;})
 
+/// 清零指定比特位，指定地址开始的多少位偏移的比特位为0
 #define clear_bit(nr,addr) ({\
 register int res __asm__("ax"); \
 __asm__ __volatile__("btrl %2,%3\n\tsetnb %%al": \
 "=a" (res):"0" (0),"r" (nr),"m" (*(addr))); \
 res;})
 
+/// 找到第一个0位的偏移
 #define find_first_zero(addr) ({ \
 int __res; \
 __asm__("cld\n" \
@@ -44,32 +48,39 @@ __asm__("cld\n" \
 	:"=c" (__res):"c" (0),"S" (addr):"ax","dx","si"); \
 __res;})
 
+/// 释放设备dev上的指定逻辑块号
 int free_block(int dev, int block)
 {
 	struct super_block * sb;
 	struct buffer_head * bh;
 
+	// 检查设备是否存在
 	if (!(sb = get_super(dev)))
 		panic("trying to free block on nonexistent device");
+	// 检查块号是否合法
 	if (block < sb->s_firstdatazone || block >= sb->s_nzones)
 		panic("trying to free block not in datazone");
+	
+	// hash表中找到对应缓冲区块
 	bh = get_hash_table(dev,block);
 	if (bh) {
-		if (bh->b_count > 1) {
+		if (bh->b_count > 1) {	// 还有其他进程使用
 			brelse(bh);
 			return 0;
 		}
+		// 没有其他进程使用
 		bh->b_dirt=0;
 		bh->b_uptodate=0;
 		if (bh->b_count)
 			brelse(bh);
 	}
-	block -= sb->s_firstdatazone - 1 ;
+	block -= sb->s_firstdatazone - 1 ;	// 得到相对于数据区的块号 就是从数据区数是第几块
+	// 这里回有点绕
 	if (clear_bit(block&8191,sb->s_zmap[block/8192]->b_data)) {
 		printk("block (%04x:%d) ",dev,block+sb->s_firstdatazone-1);
 		printk("free_block: bit already cleared\n");
 	}
-	sb->s_zmap[block/8192]->b_dirt = 1;
+	sb->s_zmap[block/8192]->b_dirt = 1;	// 位图有修改
 	return 1;
 }
 
