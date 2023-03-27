@@ -113,10 +113,10 @@ struct m_inode {
 	unsigned long i_ctime;
 	unsigned short i_dev;			// 设备号
 	unsigned short i_num;
-	unsigned short i_count;
+	unsigned short i_count;			// 进程使用的引用计数
 	unsigned char i_lock;			// 锁标记
-	unsigned char i_dirt;
-	unsigned char i_pipe;
+	unsigned char i_dirt;			// 脏标记
+	unsigned char i_pipe;			// 管道类型
 	unsigned char i_mount;
 	unsigned char i_seek;
 	unsigned char i_update;

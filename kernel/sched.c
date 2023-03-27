@@ -228,7 +228,7 @@ repeat:	schedule();
 	}
 	if (!*p)
 		printk("Warning: *P = NULL\n\r");
-	if (*p = tmp)
+	if (*p = tmp)	// tmp应该没机会被改变且不为空
 		tmp->state=0;
 }
 

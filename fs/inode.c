@@ -12,6 +12,11 @@
 #include <linux/mm.h>
 #include <asm/system.h>
 
+/**/
+
+
+/// 设备数据块总数指针数组，
+//	blk_size[0] = hd_sizes[]    指定主设备号的总块数数组  hd_sizes[0]  就是对应子设备号的总块数组
 extern int *blk_size[];
 
 // i节点表
@@ -20,7 +25,14 @@ struct m_inode inode_table[NR_INODE]={{0,},};
 static void read_inode(struct m_inode * inode);
 static void write_inode(struct m_inode * inode);
 
-/// 等待inode，如果没有被锁，就是没进程使用
+
+/**
+ * @brief 等待i节点无锁
+ * 如果已锁住，则把当前任务设置为不可中断的等待
+ * 并把当前任务放到节点的等待队列中？
+ *
+ * @param inode 
+ */
 static inline void wait_on_inode(struct m_inode * inode)
 {
 	cli();
@@ -29,6 +41,10 @@ static inline void wait_on_inode(struct m_inode * inode)
 	sti();
 }
 
+/// 对i节点上锁
+//	如果已锁住，则把当前任务设置为不可中断的等待
+//	并把当前任务放到节点的等待队列中？
+//	然后上锁
 static inline void lock_inode(struct m_inode * inode)
 {
 	cli();
@@ -38,12 +54,15 @@ static inline void lock_inode(struct m_inode * inode)
 	sti();
 }
 
+/// 对i节点解锁
+//	唤醒等待进程的节点
 static inline void unlock_inode(struct m_inode * inode)
 {
 	inode->i_lock=0;
 	wake_up(&inode->i_wait);
 }
 
+/// 释放设备dev再内存i节点表中所有i节点
 void invalidate_inodes(int dev)
 {
 	int i;
@@ -53,14 +72,15 @@ void invalidate_inodes(int dev)
 	for(i=0 ; i<NR_INODE ; i++,inode++) {
 		wait_on_inode(inode);
 		if (inode->i_dev == dev) {
-			if (inode->i_count)
+			if (inode->i_count)		// 还有引用  
 				printk("inode in use on removed disk\n\r");
-			inode->i_dev = inode->i_dirt = 0;
+			inode->i_dev = inode->i_dirt = 0;	// 释放i节点，对设备号，脏数据值0
 		}
 	}
 }
 
 /// 同步所有i节点数据
+//	把i节点表中所有i节点与设备上i节点作同步操作
 void sync_inodes(void)
 {
 	int i;
@@ -71,10 +91,20 @@ void sync_inodes(void)
 		wait_on_inode(inode);
 		// i节点是脏的且不是管道类型
 		if (inode->i_dirt && !inode->i_pipe)
-			write_inode(inode);
+			write_inode(inode);		// 写盘，实际写入缓冲区
 	}
 }
 
+
+
+ /**
+  * @brief 文件数据块银蛇到盘块的处理操作 （block位图处理函数，bmap - block map）
+  * 
+  * @param inode             文件的i节点指针
+  * @param block             文件中的数据块号
+  * @param create            是否创建块标志 = 0 #不创建 | 1 #创建
+  * @return int 创建的块号
+  */
 static int _bmap(struct m_inode * inode,int block,int create)
 {
 	struct buffer_head * bh;
@@ -84,6 +114,7 @@ static int _bmap(struct m_inode * inode,int block,int create)
 		panic("_bmap: block<0");
 	if (block >= 7+512+512*512)
 		panic("_bmap: block>big");
+	// 直接块的处理
 	if (block<7) {
 		if (create && !inode->i_zone[block])
 			if (inode->i_zone[block]=new_block(inode->i_dev)) {
@@ -92,6 +123,7 @@ static int _bmap(struct m_inode * inode,int block,int create)
 			}
 		return inode->i_zone[block];
 	}
+	// 一级间接块的处理
 	block -= 7;
 	if (block<512) {
 		if (create && !inode->i_zone[7])
@@ -112,6 +144,7 @@ static int _bmap(struct m_inode * inode,int block,int create)
 		brelse(bh);
 		return i;
 	}
+	// 二级间接块的处理
 	block -= 512;
 	if (create && !inode->i_zone[8])
 		if (inode->i_zone[8]=new_block(inode->i_dev)) {
@@ -123,6 +156,7 @@ static int _bmap(struct m_inode * inode,int block,int create)
 	if (!(bh=bread(inode->i_dev,inode->i_zone[8])))
 		return 0;
 	i = ((unsigned short *)bh->b_data)[block>>9];
+	// 块号为0且有创建标志，创建一级块
 	if (create && !i)
 		if (i=new_block(inode->i_dev)) {
 			((unsigned short *) (bh->b_data))[block>>9]=i;
@@ -136,23 +170,43 @@ static int _bmap(struct m_inode * inode,int block,int create)
 	i = ((unsigned short *)bh->b_data)[block&511];
 	if (create && !i)
 		if (i=new_block(inode->i_dev)) {
-			((unsigned short *) (bh->b_data))[block&511]=i;
+			((unsigned short *) (bh->b_data))[block&511]=i;	// 块号<511
 			bh->b_dirt=1;
 		}
 	brelse(bh);
 	return i;
 }
 
+/**
+ * @brief 取文件数据块block在设备上对应的逻辑块号
+ * 
+ * @param inode 文件的内存i节点指针
+ * @param block 文件中的数据块号
+ * @return int >0 #成功，逻辑块号 | 0 #失败
+ */
 int bmap(struct m_inode * inode,int block)
 {
 	return _bmap(inode,block,0);
 }
 
+/**
+ * @brief 取文件数据块block在设备上对应的逻辑块号，如果对应逻辑块不存在，则创建
+ * 
+ * @param inode 文件的内存i节点指针
+ * @param block 文件中的数据块号
+ * @return int int >0 #成功，逻辑块号 | 0 #失败
+ */
 int create_block(struct m_inode * inode, int block)
 {
 	return _bmap(inode,block,1);
 }
 		
+		// @read again
+/**
+ * @brief 回收i节点资源
+ * 
+ * @param inode 
+ */
 void iput(struct m_inode * inode)
 {
 	if (!inode)
@@ -160,6 +214,10 @@ void iput(struct m_inode * inode)
 	wait_on_inode(inode);
 	if (!inode->i_count)
 		panic("iput: trying to free free inode");
+	
+	
+	// 管道类型的处理
+	//	唤醒等待，如果还有引用，则退出，没有引用则释放处理
 	if (inode->i_pipe) {
 		wake_up(&inode->i_wait);
 		wake_up(&inode->i_wait2);
@@ -171,33 +229,44 @@ void iput(struct m_inode * inode)
 		inode->i_pipe=0;
 		return;
 	}
+	// 设备号已重置
 	if (!inode->i_dev) {
-		inode->i_count--;
+		inode->i_count--;  
 		return;
 	}
+	// 如果是块设备，设备号放i_zone[0]中，同步刷新该设备
 	if (S_ISBLK(inode->i_mode)) {
 		sync_dev(inode->i_zone[0]);
 		wait_on_inode(inode);
 	}
 repeat:
+	// 还有其他任务使用
 	if (inode->i_count>1) {
 		inode->i_count--;
 		return;
 	}
+	// 链接数为0
 	if (!inode->i_nlinks) {
 		truncate(inode);
 		free_inode(inode);
 		return;
 	}
+	// 有脏数据，回写，并等待解锁
 	if (inode->i_dirt) {
 		write_inode(inode);	/* we can sleep - so do again */
 		wait_on_inode(inode);
 		goto repeat;
 	}
+	// 引用=1，链接数!=0，内容没被修改  扣除引用
 	inode->i_count--;
 	return;
 }
 
+/**
+ * @brief 从i节点表中获取一个空节点 （无锁/不脏/引用计数为1） 
+ * 会加引用计数
+ * @return struct m_inode* i节点指针 | NULL
+ */
 struct m_inode * get_empty_inode(void)
 {
 	struct m_inode * inode;
@@ -206,6 +275,8 @@ struct m_inode * get_empty_inode(void)
 
 	do {
 		inode = NULL;
+		// 找到一个没引用的节点，如果这个节点是不脏无锁的，直接返回
+		
 		for (i = NR_INODE; i ; i--) {
 			if (++last_inode >= inode_table + NR_INODE)
 				last_inode = inode_table;
@@ -215,23 +286,33 @@ struct m_inode * get_empty_inode(void)
 					break;
 			}
 		}
+		// 说明在这里必须要找到一个无引用的节点
 		if (!inode) {
 			for (i=0 ; i<NR_INODE ; i++)
 				printk("%04x: %6d\t",inode_table[i].i_dev,
 					inode_table[i].i_num);
 			panic("No free inodes in mem");
 		}
+		// 执行在这里表示inode是无引用的，但可能是脏的或者被锁了
+		// 所以需要处理脏标记和锁标记
 		wait_on_inode(inode);
 		while (inode->i_dirt) {
 			write_inode(inode);
 			wait_on_inode(inode);
 		}
+		// 在清楚脏（写数据）或者解锁后，因为有可能会睡眠，从而导致又有其他任务引用，再次循环处理
 	} while (inode->i_count);
-	memset(inode,0,sizeof(*inode));
+	// 找到空i节点，清除其所有数据，引用开始计数
+	memset(inode,0,sizeof(*inode));	
 	inode->i_count = 1;
 	return inode;
 }
 
+/**
+ * @brief 获取管道节点。引用计数直接变2，读写端，初始化管道头尾 i_zone[0] i_zone[1]
+ *
+ * @return struct m_inode* = NULL # 失败 | pointer # 成功
+ */
 struct m_inode * get_pipe_inode(void)
 {
 	struct m_inode * inode;
@@ -248,6 +329,13 @@ struct m_inode * get_pipe_inode(void)
 	return inode;
 }
 
+/**
+ * @brief 
+ *  @read again
+ * @param dev 
+ * @param nr 
+ * @return struct m_inode* i节点指针  | NULL
+ */
 struct m_inode * iget(int dev,int nr)
 {
 	struct m_inode * inode, * empty;
@@ -266,13 +354,18 @@ struct m_inode * iget(int dev,int nr)
 			inode = inode_table;
 			continue;
 		}
+		// 找到设备和块号相等的i节点
 		inode->i_count++;
+		// 挂接类型处理
+		// 是否是另一个文件系统的安装点
 		if (inode->i_mount) {
 			int i;
 
+			// 扫描获得超级块
 			for (i = 0 ; i<NR_SUPER ; i++)
 				if (super_block[i].s_imount==inode)
 					break;
+			// 不是超级块 退出，收回empty
 			if (i >= NR_SUPER) {
 				printk("Mounted inode hasn't got sb\n");
 				if (empty)
@@ -298,6 +391,11 @@ struct m_inode * iget(int dev,int nr)
 	return inode;
 }
 
+/**
+ * @brief 读取指定i节点信息
+ * 
+ * @param inode 
+ */
 static void read_inode(struct m_inode * inode)
 {
 	struct super_block * sb;
@@ -325,6 +423,11 @@ static void read_inode(struct m_inode * inode)
 	unlock_inode(inode);
 }
 
+/**
+ * @brief 
+ * 
+ * @param inode 
+ */
 static void write_inode(struct m_inode * inode)
 {
 	struct super_block * sb;
