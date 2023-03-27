@@ -12,7 +12,12 @@
 #include <linux/mm.h>
 #include <asm/system.h>
 
-/**/
+/**
+ * @brief 
+ * i节点号所在的逻辑块号=启动块（引动块）+ 超级块 + i节点位图占用块数量 + 逻辑块位图占用块数量 + （i节点块号-1）/每块含有的i节点数量
+ * 虽然i节点块号从0还是编号，但由于0号块不使用，且也不实际占用块，所以存放i节点数据的第一个块所保存的块号是（1-32）
+ * 
+ */
 
 
 /// 设备数据块总数指针数组，
@@ -406,16 +411,17 @@ static void read_inode(struct m_inode * inode)
 	if (!(sb=get_super(inode->i_dev)))
 		panic("trying to read inode without dev");
 	block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks +
-		(inode->i_num-1)/INODES_PER_BLOCK;
+		(inode->i_num-1)/INODES_PER_BLOCK;		// 以d_inode的大小计算
 	if (!(bh=bread(inode->i_dev,block)))
 		panic("unable to read i-node block");
 	*(struct d_inode *)inode =
 		((struct d_inode *)bh->b_data)
 			[(inode->i_num-1)%INODES_PER_BLOCK];
 	brelse(bh);
+	// 如果是块设备
 	if (S_ISBLK(inode->i_mode)) {
-		int i = inode->i_zone[0];
-		if (blk_size[MAJOR(i)])
+		int i = inode->i_zone[0];	// 块设备的设备号
+		if (blk_size[MAJOR(i)])	// 如果是
 			inode->i_size = 1024*blk_size[MAJOR(i)][MINOR(i)];
 		else
 			inode->i_size = 0x7fffffff;
@@ -424,8 +430,8 @@ static void read_inode(struct m_inode * inode)
 }
 
 /**
- * @brief 
- * 
+ * @brief 把内存中的i节点信息写入到其对应的设备块的高速缓冲区，最终通过高速缓冲区写入设备中
+ * 期间会对i节点加锁
  * @param inode 
  */
 static void write_inode(struct m_inode * inode)
@@ -447,6 +453,7 @@ static void write_inode(struct m_inode * inode)
 		(inode->i_num-1)/INODES_PER_BLOCK;		
 	if (!(bh=bread(inode->i_dev,block)))
 		panic("unable to read i-node block");
+	// 这里是通过类型转换赋值，把内存中的inode信息赋值到其对应的i节点缓冲区块中，最后通过缓冲区块写到设备中
 	((struct d_inode *)bh->b_data)
 		[(inode->i_num-1)%INODES_PER_BLOCK] =
 			*(struct d_inode *)inode;

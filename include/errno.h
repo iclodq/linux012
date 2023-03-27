@@ -18,7 +18,7 @@ extern int errno;
 
 #define ERROR		99
 #define EPERM		 1
-#define ENOENT		 2
+#define ENOENT		 2              // 文件或目录不存在
 #define ESRCH		 3              // 未找到进程/Task
 #define EINTR		 4
 #define EIO		 5
@@ -31,8 +31,8 @@ extern int errno;
 #define ENOMEM		12
 #define EACCES		13
 #define EFAULT		14
-#define ENOTBLK		15
-#define EBUSY		16
+#define ENOTBLK		15              // 不是块设备
+#define EBUSY		16              // 正在使用
 #define EEXIST		17
 #define EXDEV		18
 #define ENODEV		19

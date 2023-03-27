@@ -86,7 +86,7 @@ struct buffer_head {
 	struct buffer_head * b_next_free;									// 空闲列表后一块
 };
 
-///数据区得inode节点信息
+/// 设备中的inode节点信息  占用32字节
 struct d_inode {
 	unsigned short i_mode;			// 文件类型和属性
 	unsigned short i_uid;			// 文件宿主用户id
@@ -97,7 +97,7 @@ struct d_inode {
 	unsigned short i_zone[9];		// 文件所占用得逻辑块号 数组
 };
 
-/// i节点
+/// 内存中的i节点信息
 struct m_inode {
 	unsigned short i_mode;			// 文件类型和属性
 	unsigned short i_uid;			// 文件宿主用户id
@@ -146,7 +146,11 @@ struct file {
 */
 
 
-/// 超级块，用于存放设备上文件系统的结构信息，并说明各部分的大小。
+
+/**
+ * @brief 超级块 主要是内存中使用
+ * 
+ */
 struct super_block {
 	unsigned short s_ninodes;			// 设备上的inode节点数量
 	unsigned short s_nzones;			// 设备上以逻辑块为单位的总数
@@ -169,6 +173,10 @@ struct super_block {
 	unsigned char s_dirt;				// 被修改后的脏标记
 };
 
+/**
+ * @brief 磁盘上的超级块信息
+ * 
+ */
 struct d_super_block {
 	unsigned short s_ninodes;
 	unsigned short s_nzones;
