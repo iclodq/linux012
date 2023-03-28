@@ -370,6 +370,14 @@ static struct m_inode * dir_namei(const char * pathname,
 	return dir;
 }
 
+/**
+ * @brief 
+ * 
+ * @param pathname 
+ * @param base 
+ * @param follow_links 
+ * @return struct m_inode* 
+ */
 struct m_inode * _namei(const char * pathname, struct m_inode * base,
 	int follow_links)
 {
