@@ -99,7 +99,7 @@ struct d_inode {
 
 /// 内存中的i节点信息
 struct m_inode {
-	unsigned short i_mode;			// 文件类型和属性
+	unsigned short i_mode;			// 文件类型和权限属性
 	unsigned short i_uid;			// 文件宿主用户id
 	unsigned long i_size;			// 文件长度
 	unsigned long i_time;			// 修改时间
@@ -112,7 +112,7 @@ struct m_inode {
 	unsigned long i_atime;
 	unsigned long i_ctime;
 	unsigned short i_dev;			// 设备号
-	unsigned short i_num;
+	unsigned short i_num;			// i节点的逻辑块号
 	unsigned short i_count;			// 进程使用的引用计数
 	unsigned char i_lock;			// 锁标记
 	unsigned char i_dirt;			// 脏标记

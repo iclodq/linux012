@@ -50,11 +50,11 @@
 #include <asm/system.h>
 
 struct bucket_desc {	/* 16 bytes */
-	void			*page;
-	struct bucket_desc	*next;
-	void			*freeptr;
-	unsigned short		refcnt;
-	unsigned short		bucket_size;
+	void				*page;			// 指向的内存页
+	struct bucket_desc	*next;			// 下一个描述符
+	void				*freeptr;		// 指针
+	unsigned short		refcnt;			// 该页被使用的次数  当为0时，可以回收该页
+	unsigned short		bucket_size;	// 当前的桶大小
 };
 
 struct _bucket_dir {	/* 8 bytes */
@@ -89,11 +89,17 @@ struct _bucket_dir bucket_dir[] = {
 /*
  * This contains a linked list of free bucket descriptor blocks
  */
+ // 空闲的桶描述符表
 struct bucket_desc *free_bucket_desc = (struct bucket_desc *) 0;
 
 /*
  * This routine initializes a bucket description page.
  */
+
+ /**
+  * @brief 申请一个页，构造桶描述符链表，并罚入到空闲桶描述符表中
+  * 
+  */
 static inline void init_bucket_desc()
 {
 	struct bucket_desc *bdesc, *first;
@@ -114,6 +120,12 @@ static inline void init_bucket_desc()
 	free_bucket_desc = first;
 }
 
+/**
+ * @brief 申请地址
+ * 
+ * @param len 
+ * @return void* 
+ */
 void *malloc(unsigned int len)
 {
 	struct _bucket_dir	*bdir;
@@ -124,9 +136,11 @@ void *malloc(unsigned int len)
 	 * First we search the bucket_dir to find the right bucket change
 	 * for this request.
 	 */
+	 // 寻找桶的位置
 	for (bdir = bucket_dir; bdir->size; bdir++)
 		if (bdir->size >= len)
 			break;
+	// 没找到，说明申请的内存太大了
 	if (!bdir->size) {
 		printk("malloc called with impossibly large argument (%d)\n",
 			len);
@@ -136,8 +150,9 @@ void *malloc(unsigned int len)
 	 * Now we search for a bucket descriptor which has free space
 	 */
 	cli();	/* Avoid race conditions */
+	// 寻找桶后面的链表
 	for (bdesc = bdir->chain; bdesc; bdesc = bdesc->next) 
-		if (bdesc->freeptr)
+		if (bdesc->freeptr)  // 找到
 			break;
 	/*
 	 * If we didn't find a bucket with free space, then we'll 
@@ -149,6 +164,7 @@ void *malloc(unsigned int len)
 
 		if (!free_bucket_desc)	
 			init_bucket_desc();
+		// 分配新的内存
 		bdesc = free_bucket_desc;
 		free_bucket_desc = bdesc->next;
 		bdesc->refcnt = 0;
@@ -157,8 +173,10 @@ void *malloc(unsigned int len)
 		if (!cp)
 			panic("Out of memory in kernel malloc()");
 		/* Set up the chain of free objects */
+		// 把新申请的内存页，按照size大小切分成(PAGE_SIZE/size)个object，然后把这些object串起来。
+		// 因为object本身没有存数据，所以每个object指向下个object的指针就放在object头部
 		for (i=PAGE_SIZE/bdir->size; i > 1; i--) {
-			*((char **) cp) = cp + bdir->size;
+			*((char **) cp) = cp + bdir->size;	// 存储下一块地址
 			cp += bdir->size;
 		}
 		*((char **) cp) = 0;
@@ -166,8 +184,8 @@ void *malloc(unsigned int len)
 		bdir->chain = bdesc;
 	}
 	retval = (void *) bdesc->freeptr;
-	bdesc->freeptr = *((void **) retval);
-	bdesc->refcnt++;
+	bdesc->freeptr = *((void **) retval);	// 这里表示原freeptr指向的地址第一个数据是下一块地址
+	bdesc->refcnt++;						// 引用计数加一
 	sti();	/* OK, we're safe again */
 	return(retval);
 }
@@ -179,6 +197,13 @@ void *malloc(unsigned int len)
  * 
  * We will #define a macro so that "free(x)" is becomes "free_s(x, 0)"
  */
+
+/**
+ * @brief 释放内存
+ * 
+ * @param obj 对应的内存
+ * @param size 指定大小（可以加速释放流程） 
+ */
 void free_s(void *obj, int size)
 {
 	void		*page;
@@ -188,6 +213,7 @@ void free_s(void *obj, int size)
 	/* Calculate what page this object lives in */
 	page = (void *)  ((unsigned long) obj & 0xfffff000);
 	/* Now search the buckets looking for that page */
+	// 找到该地址的描述符表，如果传入了size，可以更快速的先定位到桶的位置，加速查找过程
 	for (bdir = bucket_dir; bdir->size; bdir++) {
 		prev = 0;
 		/* If size is zero then this conditional is always false */
@@ -202,10 +228,10 @@ void free_s(void *obj, int size)
 	panic("Bad address passed to kernel free_s()");
 found:
 	cli(); /* To avoid race conditions */
-	*((void **)obj) = bdesc->freeptr;
+	*((void **)obj) = bdesc->freeptr;  // 对该块内存进行链接
 	bdesc->freeptr = obj;
-	bdesc->refcnt--;
-	if (bdesc->refcnt == 0) {
+	bdesc->refcnt--; // 描述符减一
+	if (bdesc->refcnt == 0) {  // 该内存页没任务使用，回收
 		/*
 		 * We need to make sure that prev is still accurate.  It
 		 * may not be, if someone rudely interrupted us....
@@ -213,12 +239,13 @@ found:
 		if ((prev && (prev->next != bdesc)) ||
 		    (!prev && (bdir->chain != bdesc)))
 			for (prev = bdir->chain; prev; prev = prev->next)
+				// 这里时确保链表关系没有破坏
 				if (prev->next == bdesc)
 					break;
 		if (prev)
 			prev->next = bdesc->next;
 		else {
-			if (bdir->chain != bdesc)
+			if (bdir->chain != bdesc)  // 维护出错了
 				panic("malloc bucket chains corrupted");
 			bdir->chain = bdesc->next;
 		}

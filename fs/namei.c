@@ -40,6 +40,14 @@ static struct m_inode * _namei(const char * filename, struct m_inode * base,
  * I don't know if we should look at just the euid or both euid and
  * uid, but that should be easily changed.
  */
+ 
+ /**
+  * @brief 权限检查。先检查有效用户id，再检查组id，最后检查mask，超级用户直接跳过
+  * 
+  * @param inode 
+  * @param mask 
+  * @return int 
+  */
 static int permission(struct m_inode * inode,int mask)
 {
 	int mode = inode->i_mode;
@@ -47,7 +55,7 @@ static int permission(struct m_inode * inode,int mask)
 /* special case: not even root can read/write a deleted file */
 	if (inode->i_dev && !inode->i_nlinks)
 		return 0;
-	else if (current->euid==inode->i_uid)
+	else if (current->euid==inode->i_uid)		
 		mode >>= 6;
 	else if (in_group_p(inode->i_gid))
 		mode >>= 3;
@@ -63,6 +71,15 @@ static int permission(struct m_inode * inode,int mask)
  *
  * NOTE! unlike strncmp, match returns 1 for success, 0 for failure.
  */
+
+ /**
+  * @brief 检查文件名是否与目录项中的匹配
+  * 
+  * @param len 
+  * @param name 
+  * @param de 
+  * @return int 
+  */
 static int match(int len,const char * name,struct dir_entry * de)
 {
 	register int same __asm__("ax");
@@ -94,6 +111,16 @@ static int match(int len,const char * name,struct dir_entry * de)
  * This also takes care of the few special cases due to '..'-traversal
  * over a pseudo-root and a mount point.
  */
+
+/**
+ * @brief 从指定目录i节点开始dir，找到名字与name匹配的目录项，并取出其i节点的缓冲区。其中会处理其他文件系统的的
+ * 
+ * @param dir 
+ * @param name 
+ * @param namelen 
+ * @param res_dir 
+ * @return struct buffer_head* 
+ */
 static struct buffer_head * find_entry(struct m_inode ** dir,
 	const char * name, int namelen, struct dir_entry ** res_dir)
 {
@@ -115,11 +142,12 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
 /* check for '..', as we might have to do some "magic" for it */
 	if (namelen==2 && get_fs_byte(name)=='.' && get_fs_byte(name+1)=='.') {
 /* '..' in a pseudo-root results in a faked '.' (just change namelen) */
-		if ((*dir) == current->root)
+		if ((*dir) == current->root) // 如果使进程根目录，需要修正
 			namelen=1;
 		else if ((*dir)->i_num == ROOT_INO) {
 /* '..' over a mount-point results in 'dir' being exchanged for the mounted
    directory-inode. NOTE! We set mounted, so that we can iput the new dir */
+			// 文件系统根目录，如果有安装，调整到安装的节点
 			sb=get_super((*dir)->i_dev);
 			if (sb->s_imount) {
 				iput(*dir);
@@ -261,6 +289,14 @@ static struct m_inode * follow_link(struct m_inode * dir, struct m_inode * inode
  * Getdir traverses the pathname until it hits the topmost directory.
  * It returns NULL on failure.
  */
+
+ /**
+  * @brief 获取指定路径的目录的inode
+  * 
+  * @param pathname 	路径
+  * @param inode 		从指定目录节点开始查找
+  * @return struct m_inode* 
+  */
 static struct m_inode * get_dir(const char * pathname, struct m_inode * inode)
 {
 	char c;
@@ -270,22 +306,26 @@ static struct m_inode * get_dir(const char * pathname, struct m_inode * inode)
 	struct dir_entry * de;
 	struct m_inode * dir;
 
+	// inode没有，先设置成任务工作目录
 	if (!inode) {
 		inode = current->pwd;
 		inode->i_count++;
 	}
+	// 如果使“/***”开头，则从根目录开始寻找，inode也设置成任务根目录节点
 	if ((c=get_fs_byte(pathname))=='/') {
 		iput(inode);
 		inode = current->root;
 		pathname++;
-		inode->i_count++;
+		inode->i_count++;  // 引用
 	}
 	while (1) {
 		thisname = pathname;
+		// 检查inode是否为目录，且需要目录的执行权限
 		if (!S_ISDIR(inode->i_mode) || !permission(inode,MAY_EXEC)) {
 			iput(inode);
 			return NULL;
 		}
+		// 得到下一层级的目录或文件名
 		for(namelen=0;(c=get_fs_byte(pathname++))&&(c!='/');namelen++)
 			/* nothing */ ;
 		if (!c)
@@ -325,7 +365,7 @@ static struct m_inode * dir_namei(const char * pathname,
 	while (c=get_fs_byte(pathname++))
 		if (c=='/')
 			basename=pathname;
-	*namelen = pathname-basename-1;
+	*namelen = pathname-basename-1;		// 感觉有点问题
 	*name = basename;
 	return dir;
 }
@@ -512,6 +552,13 @@ int sys_mknod(const char * filename, int mode, int dev)
 	return 0;
 }
 
+/**
+ * @brief 创建目录
+ * 
+ * @param pathname 
+ * @param mode 
+ * @return int 
+ */
 int sys_mkdir(const char * pathname, int mode)
 {
 	const char * basename;
@@ -588,6 +635,14 @@ int sys_mkdir(const char * pathname, int mode)
 /*
  * routine to check that the specified directory is empty (for rmdir)
  */
+
+
+ /**
+  * @brief 判断i节点目录是否为空
+  * 
+  * @param inode 
+  * @return int  1 #为空 | 0 #不为空
+  */
 static int empty_dir(struct m_inode * inode)
 {
 	int nr,block;
@@ -607,6 +662,7 @@ static int empty_dir(struct m_inode * inode)
 	    	printk("warning - bad directory on dev %04x\n",inode->i_dev);
 		return 0;
 	}
+	// 查找遍历该目录i节点的所有目录项，如果有i节点号，表示有其他文件或目录，若都为0，表示该目录为空
 	nr = 2;
 	de += 2;
 	while (nr<len) {
@@ -632,6 +688,12 @@ static int empty_dir(struct m_inode * inode)
 	return 1;
 }
 
+/**
+ * @brief 移除目录name   -- 系统调用
+ * 
+ * @param name 
+ * @return int 
+ */
 int sys_rmdir(const char * name)
 {
 	const char * basename;

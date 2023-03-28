@@ -160,7 +160,7 @@ struct task_struct {
 	int tty;								// 进程使用的tty终端的子设备号 -1 表示没有使用 
 	unsigned short umask;					// 文件创建属性屏蔽位
 	struct m_inode * pwd;					// 当前工作目录inode节点的指针
-	struct m_inode * root;					// 根目录inode节点指针
+	struct m_inode * root;					// 当前进程的伪根目录inode节点指针，为了安全做的设计，使程序不能查找到root的父目录及更上层
 	struct m_inode * executable;			// 执行文件inode节点指针
 	struct m_inode * library;				// 被加载库文件inode节点指针
 	unsigned long close_on_exec;			// 执行时关闭文件句柄位图标记 （fcntl.h)

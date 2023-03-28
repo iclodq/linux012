@@ -103,7 +103,7 @@ void sync_inodes(void)
 
 
  /**
-  * @brief 文件数据块银蛇到盘块的处理操作 （block位图处理函数，bmap - block map）
+  * @brief 文件数据块映射到盘块的处理操作 （block位图处理函数，bmap - block map）
   * 
   * @param inode             文件的i节点指针
   * @param block             文件中的数据块号
