@@ -113,13 +113,13 @@ static int match(int len,const char * name,struct dir_entry * de)
  */
 
 /**
- * @brief 从指定目录i节点开始dir，找到名字与name匹配的目录项，并取出其i节点的缓冲区。其中会处理其他文件系统的的
+ * @brief 在指定目录i节点dir，找到名字与name匹配的目录项，并取出其目录项所在的高速缓冲区头。其中会处理安装的其他文件系统
  * 
- * @param dir 
- * @param name 
- * @param namelen 
- * @param res_dir 
- * @return struct buffer_head* 
+ * @param dir 		会返回调整后的实际目录i节点
+ * @param name 		找到的文件名
+ * @param namelen 	文件名长度
+ * @param res_dir 	返回name对应的目录项
+ * @return struct buffer_head*  含有目录项的高速缓冲区头
  */
 static struct buffer_head * find_entry(struct m_inode ** dir,
 	const char * name, int namelen, struct dir_entry ** res_dir)
@@ -162,11 +162,15 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
 		return NULL;
 	i = 0;
 	de = (struct dir_entry *) bh->b_data;
+	// 下面开始挨个匹配文件名
 	while (i < entries) {
+		// 当遍历的目录项已经超过一个块的大小，则需要拿取目录的下一个数据块出来遍历
 		if ((char *)de >= BLOCK_SIZE+bh->b_data) {
 			brelse(bh);
 			bh = NULL;
-			if (!(block = bmap(*dir,i/DIR_ENTRIES_PER_BLOCK)) ||
+			// 这里需注意的是，如果没拿到block或者bh为空 会进入到if分支处理，跳过这一块的目录项 
+			// 但这种跳过是否代表目录文件维护有问题呢？
+			if (!(block = bmap(*dir,i/DIR_ENTRIES_PER_BLOCK)) ||  
 			    !(bh = bread((*dir)->i_dev,block))) {
 				i += DIR_ENTRIES_PER_BLOCK;
 				continue;
@@ -194,6 +198,16 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
  * may not sleep between calling this and putting something into
  * the entry, as someone else might have used it while you slept.
  */
+
+ /**
+  * @brief 
+  * 
+  * @param dir 
+  * @param name 
+  * @param namelen 
+  * @param res_dir 
+  * @return struct buffer_head* 
+  */
 static struct buffer_head * add_entry(struct m_inode * dir,
 	const char * name, int namelen, struct dir_entry ** res_dir)
 {
@@ -251,6 +265,13 @@ static struct buffer_head * add_entry(struct m_inode * dir,
 	return NULL;
 }
 
+/**
+ * @brief 
+ * 
+ * @param dir 
+ * @param inode 
+ * @return struct m_inode* 
+ */
 static struct m_inode * follow_link(struct m_inode * dir, struct m_inode * inode)
 {
 	unsigned short fs;
@@ -264,6 +285,7 @@ static struct m_inode * follow_link(struct m_inode * dir, struct m_inode * inode
 		iput(dir);
 		return NULL;
 	}
+	// 软链接
 	if (!S_ISLNK(inode->i_mode)) {
 		iput(dir);
 		return inode;
@@ -294,7 +316,7 @@ static struct m_inode * follow_link(struct m_inode * dir, struct m_inode * inode
   * @brief 获取指定路径的目录的inode
   * 
   * @param pathname 	路径
-  * @param inode 		从指定目录节点开始查找
+  * @param inode 		从指定目录节点开始查找，如果为空，则设置为任务工作目录
   * @return struct m_inode* 
   */
 static struct m_inode * get_dir(const char * pathname, struct m_inode * inode)
@@ -318,6 +340,7 @@ static struct m_inode * get_dir(const char * pathname, struct m_inode * inode)
 		pathname++;
 		inode->i_count++;  // 引用
 	}
+	// 下面会拆解目录 "usr/lib/include/" 一个层一层查找  usr 在上面已经找到，进入循环后，就查找lib的i节点（通过find_entry）
 	while (1) {
 		thisname = pathname;
 		// 检查inode是否为目录，且需要目录的执行权限
@@ -330,6 +353,7 @@ static struct m_inode * get_dir(const char * pathname, struct m_inode * inode)
 			/* nothing */ ;
 		if (!c)
 			return inode;
+		// 找到下一层级的目录项
 		if (!(bh = find_entry(&inode,thisname,namelen,&de))) {
 			iput(inode);
 			return NULL;
@@ -341,6 +365,7 @@ static struct m_inode * get_dir(const char * pathname, struct m_inode * inode)
 			iput(dir);
 			return NULL;
 		}
+		// 处理软链接的问题
 		if (!(inode = follow_link(dir,inode)))
 			return NULL;
 	}
@@ -352,6 +377,16 @@ static struct m_inode * get_dir(const char * pathname, struct m_inode * inode)
  * dir_namei() returns the inode of the directory of the
  * specified name, and the name within that directory.
  */
+
+ /**
+  * @brief 获取pathname的inode节点，且传出pahtname的basename，如果路径名以'/'结尾，传出的basename为空
+  * 
+  * @param pathname	指定文件夹路径
+  * @param namelen	[in]pathname的长度    [out]返回name的长度
+  * @param name 	返回的basename
+  * @param base 	返回的长度
+  * @return struct m_inode* 
+  */
 static struct m_inode * dir_namei(const char * pathname,
 	int * namelen, const char ** name, struct m_inode * base)
 {
@@ -362,10 +397,14 @@ static struct m_inode * dir_namei(const char * pathname,
 	if (!(dir = get_dir(pathname,base)))
 		return NULL;
 	basename = pathname;
+	// 如果是 "/user/login" ， 在退出while时，c指向字符串尾'\0'，pathname指向c后面一位,basename指向'login'的'l'
+	//  所以下面计算长度时要减一
+	// 如果是 "/user/login/", 退出while时， c指向字符串尾'\0',pathname指向c后面一位，basename指向无效字段，
+	// 此时长度namelen=0
 	while (c=get_fs_byte(pathname++))
 		if (c=='/')
 			basename=pathname;
-	*namelen = pathname-basename-1;		// 感觉有点问题
+	*namelen = pathname-basename-1;	
 	*name = basename;
 	return dir;
 }
@@ -561,7 +600,7 @@ int sys_mknod(const char * filename, int mode, int dev)
 }
 
 /**
- * @brief 创建目录
+ * @brief 创建指定目录
  * 
  * @param pathname 
  * @param mode 
@@ -575,16 +614,20 @@ int sys_mkdir(const char * pathname, int mode)
 	struct buffer_head * bh, *dir_block;
 	struct dir_entry * de;
 
+	// 根据pathname找到其最末层的目录i节点，并返回需要创建的目录名basenmae
+	// 如："/usr/bin/create_dir"  dir=bin的inode  basename=create_dir
 	if (!(dir = dir_namei(pathname,&namelen,&basename, NULL)))
 		return -ENOENT;
 	if (!namelen) {
 		iput(dir);
 		return -ENOENT;
 	}
+	// 目录需要些权限
 	if (!permission(dir,MAY_WRITE)) {
 		iput(dir);
 		return -EPERM;
 	}
+	// 查找该目录是否已有对应名字的文件
 	bh = find_entry(&dir,basename,namelen,&de);
 	if (bh) {
 		brelse(bh);
@@ -596,7 +639,7 @@ int sys_mkdir(const char * pathname, int mode)
 		iput(dir);
 		return -ENOSPC;
 	}
-	inode->i_size = 32;
+	inode->i_size = 32;		// 舌战该文件占用的大小
 	inode->i_dirt = 1;
 	inode->i_mtime = inode->i_atime = CURRENT_TIME;
 	if (!(inode->i_zone[0]=new_block(inode->i_dev))) {

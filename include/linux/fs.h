@@ -102,7 +102,7 @@ struct m_inode {
 	unsigned short i_mode;			// 文件类型和权限属性
 	unsigned short i_uid;			// 文件宿主用户id
 	unsigned long i_size;			// 文件长度
-	unsigned long i_time;			// 修改时间
+	unsigned long i_mtime;			// 修改时间
 	unsigned char i_gid;			// 文组所属组id
 	unsigned char i_nlinks;			// 链接数量
 	unsigned short i_zone[9];		// 文件所占用得逻辑块号 数组
@@ -117,7 +117,7 @@ struct m_inode {
 	unsigned char i_lock;			// 锁标记
 	unsigned char i_dirt;			// 脏标记
 	unsigned char i_pipe;			// 管道类型
-	unsigned char i_mount;
+	unsigned char i_mount;			// 是否被安装的标记
 	unsigned char i_seek;
 	unsigned char i_update;
 };

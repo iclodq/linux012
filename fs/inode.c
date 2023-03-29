@@ -186,7 +186,7 @@ static int _bmap(struct m_inode * inode,int block,int create)
  * @brief 取文件数据块block在设备上对应的逻辑块号
  * 
  * @param inode 文件的内存i节点指针
- * @param block 文件中的数据块号
+ * @param block 文件中的数据块号，是相对于文件的起始数据所编的块号
  * @return int >0 #成功，逻辑块号 | 0 #失败
  */
 int bmap(struct m_inode * inode,int block)
@@ -337,8 +337,8 @@ struct m_inode * get_pipe_inode(void)
 /**
  * @brief 
  *  @read again
- * @param dev 
- * @param nr 
+ * @param dev 	设备号
+ * @param nr 	i节点号
  * @return struct m_inode* i节点指针  | NULL
  */
 struct m_inode * iget(int dev,int nr)
@@ -349,17 +349,20 @@ struct m_inode * iget(int dev,int nr)
 		panic("iget with dev==0");
 	empty = get_empty_inode();
 	inode = inode_table;
+	// 现在已有的i节点表中查找
 	while (inode < NR_INODE+inode_table) {
 		if (inode->i_dev != dev || inode->i_num != nr) {
 			inode++;
 			continue;
 		}
-		wait_on_inode(inode);
+		// 找到对应块号的i节点，等待解锁
+		wait_on_inode(inode); 
 		if (inode->i_dev != dev || inode->i_num != nr) {
 			inode = inode_table;
+			// 睡眠后产生变化，从头开始找
 			continue;
 		}
-		// 找到设备和块号相等的i节点
+		// 找到设备和块号相等的i节点，引用加一
 		inode->i_count++;
 		// 挂接类型处理
 		// 是否是另一个文件系统的安装点
@@ -378,6 +381,7 @@ struct m_inode * iget(int dev,int nr)
 				return inode;
 			}
 			iput(inode);
+			// 切换到安装的设备中查找
 			dev = super_block[i].s_dev;
 			nr = ROOT_INO;
 			inode = inode_table;
@@ -387,6 +391,7 @@ struct m_inode * iget(int dev,int nr)
 			iput(empty);
 		return inode;
 	}
+	// 在节点表中未找到，如果也没获取新的i节点，则返回NULL
 	if (!empty)
 		return (NULL);
 	inode=empty;
@@ -397,7 +402,7 @@ struct m_inode * iget(int dev,int nr)
 }
 
 /**
- * @brief 读取指定i节点信息
+ * @brief 从设备中读取i节点信息，需保证i节点i_dev,i_num字段有效
  * 
  * @param inode 
  */
@@ -414,6 +419,7 @@ static void read_inode(struct m_inode * inode)
 		(inode->i_num-1)/INODES_PER_BLOCK;		// 以d_inode的大小计算
 	if (!(bh=bread(inode->i_dev,block)))
 		panic("unable to read i-node block");
+	// 把从设备中读取的i节点信息赋值给inode
 	*(struct d_inode *)inode =
 		((struct d_inode *)bh->b_data)
 			[(inode->i_num-1)%INODES_PER_BLOCK];

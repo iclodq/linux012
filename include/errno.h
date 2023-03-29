@@ -33,7 +33,7 @@ extern int errno;
 #define EFAULT		14
 #define ENOTBLK		15              // 不是块设备
 #define EBUSY		16              // 正在使用
-#define EEXIST		17
+#define EEXIST		17              // 已经存在
 #define EXDEV		18
 #define ENODEV		19
 #define ENOTDIR		20

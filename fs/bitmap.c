@@ -84,6 +84,12 @@ int free_block(int dev, int block)
 	return 1;
 }
 
+/**
+ * @brief 
+ * 
+ * @param dev 
+ * @return int 
+ */
 int new_block(int dev)
 {
 	struct buffer_head * bh;
@@ -93,25 +99,30 @@ int new_block(int dev)
 	if (!(sb = get_super(dev)))
 		panic("trying to get new block from nonexistant device");
 	j = 8192;
+	// 获取位图偏移
 	for (i=0 ; i<8 ; i++)
 		if (bh=sb->s_zmap[i])
 			if ((j=find_first_zero(bh->b_data))<8192)
 				break;
+	// 检查偏移合法
 	if (i>=8 || !bh || j>=8192)
 		return 0;
+	// 设置位图
 	if (set_bit(j,bh->b_data))
 		panic("new_block: bit already set");
 	bh->b_dirt = 1;
-	j += i*8192 + sb->s_firstdatazone-1;
+	j += i*8192 + sb->s_firstdatazone-1;  // 计算得到逻辑块号
 	if (j >= sb->s_nzones)
 		return 0;
+
 	if (!(bh=getblk(dev,j)))
 		panic("new_block: cannot get block");
 	if (bh->b_count != 1)
 		panic("new block: count is != 1");
-	clear_block(bh->b_data);
-	bh->b_uptodate = 1;
-	bh->b_dirt = 1;
+
+	clear_block(bh->b_data);// 清理块数据
+	bh->b_uptodate = 1;  	// 值最新标记
+	bh->b_dirt = 1;			// 置脏标记
 	brelse(bh);
 	return j;
 }
@@ -145,6 +156,12 @@ void free_inode(struct m_inode * inode)
 	memset(inode,0,sizeof(*inode));
 }
 
+/**
+ * @brief 在设备中创建一个新的inode节点，相应位图置一，并初始化i节点数据
+ * 
+ * @param dev 
+ * @return struct m_inode* 
+ */
 struct m_inode * new_inode(int dev)
 {
 	struct m_inode * inode;
@@ -161,20 +178,25 @@ struct m_inode * new_inode(int dev)
 		if (bh=sb->s_imap[i])
 			if ((j=find_first_zero(bh->b_data))<8192)
 				break;
+	
+	// 检查找到的位图位置是否合法
 	if (!bh || j >= 8192 || j+i*8192 > sb->s_ninodes) {
 		iput(inode);
 		return NULL;
 	}
+	// 设置位图
 	if (set_bit(j,bh->b_data))
 		panic("new_inode: bit already set");
-	bh->b_dirt = 1;
-	inode->i_count=1;
-	inode->i_nlinks=1;
+	
+	bh->b_dirt = 1;  // 对位图设置脏标记
+	// 初始化i节点数据
+	inode->i_count=1;				// 引用加一
+	inode->i_nlinks=1;				// 链接数量
 	inode->i_dev=dev;
-	inode->i_uid=current->euid;
+	inode->i_uid=current->euid;		// 使用有效用户id和有效组id赋值
 	inode->i_gid=current->egid;
 	inode->i_dirt=1;
-	inode->i_num = j + i*8192;
+	inode->i_num = j + i*8192;   // 块号
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 	return inode;
 }
