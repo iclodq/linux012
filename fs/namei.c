@@ -200,7 +200,7 @@ static struct buffer_head * find_entry(struct m_inode ** dir,
  */
 
  /**
-  * @brief 
+  * @brief 在目录"dir"中添加一个文件“name”
   * 
   * @param dir 
   * @param name 
@@ -819,6 +819,12 @@ int sys_rmdir(const char * name)
 	return 0;
 }
 
+/**
+ * @brief 取消硬链接
+ * 
+ * @param name 
+ * @return int 
+ */
 int sys_unlink(const char * name)
 {
 	const char * basename;
@@ -847,6 +853,7 @@ int sys_unlink(const char * name)
 		brelse(bh);
 		return -ENOENT;
 	}
+	// 检查权限
 	if ((dir->i_mode & S_ISVTX) && !suser() &&
 	    current->euid != inode->i_uid &&
 	    current->euid != dir->i_uid) {
@@ -855,6 +862,7 @@ int sys_unlink(const char * name)
 		brelse(bh);
 		return -EPERM;
 	}
+	//目录
 	if (S_ISDIR(inode->i_mode)) {
 		iput(inode);
 		iput(dir);

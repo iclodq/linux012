@@ -250,7 +250,7 @@ repeat:
 		inode->i_count--;
 		return;
 	}
-	// 链接数为0
+	// 链接数为0 引用数为1
 	if (!inode->i_nlinks) {
 		truncate(inode);
 		free_inode(inode);

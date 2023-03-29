@@ -85,10 +85,10 @@ int free_block(int dev, int block)
 }
 
 /**
- * @brief 
+ * @brief 在设备上获取一个新的盘块，会把数据清理
  * 
- * @param dev 
- * @return int 
+ * @param dev  设备
+ * @return int 新的逻辑块号
  */
 int new_block(int dev)
 {
@@ -127,6 +127,11 @@ int new_block(int dev)
 	return j;
 }
 
+/**
+ * @brief 释放i节点  需要引用为1或0，链接数为0，节点号要正常。会把i节点数据置0
+ * 
+ * @param inode 
+ */
 void free_inode(struct m_inode * inode)
 {
 	struct super_block * sb;
