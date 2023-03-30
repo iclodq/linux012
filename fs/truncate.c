@@ -8,6 +8,13 @@
 
 #include <sys/stat.h>
 
+/**
+ * @brief 释放第一层及的节点
+ * 
+ * @param dev 
+ * @param block 
+ * @return int 
+ */
 static int free_ind(int dev,int block)
 {
 	struct buffer_head * bh;
@@ -35,6 +42,13 @@ static int free_ind(int dev,int block)
 		return free_block(dev,block);
 }
 
+/**
+ * @brief 释放二层block的节点
+ * 
+ * @param dev 
+ * @param block 
+ * @return int 
+ */
 static int free_dind(int dev,int block)
 {
 	struct buffer_head * bh;
