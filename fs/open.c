@@ -22,6 +22,13 @@ int sys_ustat(int dev, struct ustat * ubuf)
 	return -ENOSYS;
 }
 
+/**
+ * @brief 更新时间
+ * 
+ * @param filename 
+ * @param times 
+ * @return int 
+ */
 int sys_utime(char * filename, struct utimbuf * times)
 {
 	struct m_inode * inode;

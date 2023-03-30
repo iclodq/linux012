@@ -472,6 +472,16 @@ struct m_inode * namei(const char * pathname)
  *
  * namei for open - this is in fact almost the whole open-routine.
  */
+
+ /**
+  * @brief 根据文件名打开文件，并返回对应的i节点
+  * 
+  * @param pathname 
+  * @param flag 
+  * @param mode 
+  * @param res_inode 
+  * @return int 
+  */
 int open_namei(const char * pathname, int flag, int mode,
 	struct m_inode ** res_inode)
 {
